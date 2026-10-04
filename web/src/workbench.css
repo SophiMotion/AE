@@ -160,6 +160,24 @@ select {
   padding: 0 24px;
   gap: 38px;
 }
+.public-demo-notice {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #654537;
+  background: #201b17;
+  border-radius: 8px;
+  padding: 15px 18px;
+  margin-bottom: 24px;
+}
+.public-demo-notice > div { flex: 1; min-width: 0; }
+.public-demo-notice strong { color: #f4bf99; }
+.public-demo-notice p { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.public-demo-notice a { flex-shrink: 0; }
+@media (max-width: 760px) {
+  .public-demo-notice { flex-wrap: wrap; gap: 10px; }
+  .public-demo-notice > div { flex-basis: 100%; }
+}
 .brand {
   display: flex;
   gap: 10px;
@@ -436,6 +454,7 @@ select {
   --xy-background-color: #0b0d0f;
 }
 .flow-stage {
+  pointer-events: auto;
   width: 246px;
   height: 80px;
   padding: 13px 17px;

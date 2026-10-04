@@ -9,7 +9,7 @@ import {
   UploadSimple,
   X,
 } from "@phosphor-icons/react";
-import { api, printable, type Source, type Project } from "./api";
+import { api, isPublicDemo, printable, type Source, type Project } from "./api";
 type Summary = Record<string, unknown>;
 interface Evaluation {
   total: number;
@@ -122,27 +122,30 @@ export default function Library({ project }: { project: Project | null }) {
       <header className="page-heading">
         <div>
           <h1>资料库</h1>
-          <p>把适用板型、版本和来源一起交给 AI。</p>
+          <p>{isPublicDemo ? "浏览与筛选公开参考资料；本机平台的 RAG 会在生成前检索适用资料。" : "把适用板型、版本和来源一起交给 AI。"}</p>
         </div>
         <div className="heading-actions">
           <button
             className="button secondary"
             onClick={() => void evaluate()}
-            disabled={evaluating}
+            disabled={evaluating || isPublicDemo}
+            title={isPublicDemo ? "完整本机平台会运行检索评估；此分享版提供公开资料筛选" : undefined}
           >
             {evaluating ? (
               <CircleNotch size={17} className="spin" />
             ) : (
               <Flask size={17} />
             )}
-            检查检索效果
+            {isPublicDemo ? "检索评估（本机功能）" : "检查检索效果"}
           </button>
           <button
             className="button primary"
+            disabled={isPublicDemo}
+            title={isPublicDemo ? "资料导入在完整本机平台进行" : undefined}
             onClick={() => setShowImport(!showImport)}
           >
             <UploadSimple size={17} />
-            导入资料
+            {isPublicDemo ? "导入资料（本机功能）" : "导入资料"}
           </button>
         </div>
       </header>
@@ -161,7 +164,7 @@ export default function Library({ project }: { project: Project | null }) {
         <div className="knowledge-overview">
           <BookOpenText size={22} />
           <div>
-            <strong>本机资料与检索记录</strong>
+            <strong>{isPublicDemo ? "公开参考资料与已有检索记录" : "本机资料与检索记录"}</strong>
             <p>{statsText(stats)}</p>
           </div>
           <details>

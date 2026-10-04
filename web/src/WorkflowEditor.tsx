@@ -18,7 +18,7 @@ import {
   FlowArrow,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { api, type EngineeringWorkflow } from "./api";
+import { api, isPublicDemo, type EngineeringWorkflow } from "./api";
 import {
   defaultWorkflow,
   sequenceWorkflow,
@@ -94,7 +94,7 @@ export default function WorkflowEditor({
         value,
       );
       onChange(response.workflow);
-      setServerMessage("后台检查通过。保存后，执行程序会按这份连线安排顺序。");
+      setServerMessage(isPublicDemo ? "浏览器连线检查通过；这只检查流程图，不会执行任务。" : "后台检查通过。保存后，执行程序会按这份连线安排顺序。");
     } catch (e) {
       setServerMessage((e as Error).message);
     } finally {

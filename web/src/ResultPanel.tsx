@@ -20,7 +20,8 @@ import {
   WarningCircle,
   Wrench,
 } from "@phosphor-icons/react";
-import { printable, type Run } from "./api";
+import { isPublicDemo, printable, type Run } from "./api";
+import { recordDownloadUrl } from "./demoDownload";
 import ChecksView, { engineName, espStatus } from "./ChecksView";
 import { StructureReplay } from "./StructurePanel";
 import ModelIdentity from "./ModelIdentity";
@@ -66,12 +67,12 @@ export default function ResultPanel({
         <Flask size={24} />
         <div>
           <h2>运行与评估</h2>
-          <p>结果来自实际执行。编译通过与实物验证分别记录。</p>
+          <p>{isPublicDemo ? "展示已有本机执行记录；当前网页没有再次运行。编译通过与实物验证分别记录。" : "结果来自实际执行。编译通过与实物验证分别记录。"}</p>
         </div>
         {run && (
-          <a className="button secondary" href={`/api/runs/${run.id}/export`}>
+          <a className="button secondary" href={recordDownloadUrl(run)} download={isPublicDemo ? "AE-公开示例记录.json" : undefined}>
             <DownloadSimple size={17} />
-            导出工程
+            {isPublicDemo ? "下载公开示例记录" : "导出工程"}
           </a>
         )}
       </header>
@@ -102,7 +103,9 @@ export default function ResultPanel({
           <Flask size={32} />
           <h3>{run ? "等待这轮检查结果" : "还没有运行结果"}</h3>
           <p>
-            {run
+            {isPublicDemo
+              ? "浏览器草稿没有运行结果，可选择左侧公开示例查看历史验收。"
+              : run
               ? "日志会记录编译、启动和检查过程。"
               : "核对拆分结果后，生成程序并开始第一轮检查。"}
           </p>
@@ -231,8 +234,7 @@ export default function ResultPanel({
                 本轮代码、完整轨迹与构建产物 · {run.artifacts.length} 个文件
               </summary>
               <p>
-                文件与当前运行及冻结规格绑定。上方“导出工程”包含 ROS
-                工程、固件工程、构建日志和全部运行轨迹；“生成文件”可逐份查看源码。
+                {isPublicDemo ? "这是已有示例公开的源码与轨迹清单。可在下方“生成文件”查看；下载的是公开记录，不是新需求的工程。完整项目源码见页面顶部链接。" : "文件与当前运行及冻结规格绑定。上方“导出工程”包含 ROS 工程、固件工程、构建日志和全部运行轨迹；“生成文件”可逐份查看源码。"}
               </p>
               <ul>
                 {run.artifacts.map((file) => (
@@ -249,7 +251,7 @@ export default function ResultPanel({
           </div>
           {!!result.metrics && (
             <details className="source-details">
-              <summary>原始检查记录</summary>
+              <summary>{isPublicDemo ? "公开检查记录" : "原始检查记录"}</summary>
               <pre>
                 {printable({
                   ...result,
@@ -266,7 +268,7 @@ export default function ResultPanel({
           <span>{run.error}</span>
         </div>
       )}
-      {run && ["failed", "cancelled", "interrupted"].includes(run.status) && (
+      {!isPublicDemo && run && ["failed", "cancelled", "interrupted"].includes(run.status) && (
         <div className="form-actions">
           <p>用这轮记录修改程序，保留原来的验收标准。</p>
           <button
@@ -279,12 +281,12 @@ export default function ResultPanel({
           </button>
         </div>
       )}
-      {run?.status === "passed" && !run.integrity?.fingerprint && (
+      {!isPublicDemo && run?.status === "passed" && !run.integrity?.fingerprint && (
         <div className="notice warning">
           这份历史记录没有通过版本指纹，可以查看和导出；重新生成并检查后才能部署复测。
         </div>
       )}
-      {run?.status === "passed" && !!run.integrity?.fingerprint && (
+      {!isPublicDemo && run?.status === "passed" && !!run.integrity?.fingerprint && (
         <div className="approval-box">
           <label>
             <input
@@ -346,7 +348,7 @@ export default function ResultPanel({
           </details>
         </div>
       )}
-      {run &&
+      {!isPublicDemo && run &&
         ["passed", "failed", "cancelled", "interrupted", "deployed"].includes(
           run.status,
         ) && <ExperiencePanel key={run.id} run={run} />}

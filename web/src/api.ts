@@ -1,4 +1,6 @@
 import type { IntakeDetails, DetailGroupKey } from "./intakeDetails";
+import { isPublicDemo, publicDemoApi } from "./publicDemo";
+export { isPublicDemo } from "./publicDemo";
 export type TaskType = "joint_position" | "sensor_threshold" | "joint_sequence";
 export type Status =
   | "draft"
@@ -588,6 +590,7 @@ export async function api<T>(
   method = body === undefined ? "GET" : "POST",
   signal?: AbortSignal,
 ): Promise<T> {
+  if (isPublicDemo) return publicDemoApi<T>(path, body, method, signal);
   const response = await fetch(`/api${path}`, {
     method,
     headers:

@@ -38,6 +38,7 @@ import {
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import {
   api,
+  isPublicDemo,
   type HardwareNoteKey,
   type IntakeAnswers,
   type IntakeReadiness,
@@ -559,7 +560,7 @@ function IntakeGuide({
               onClick={recommend}
             >
               {recommending && <CircleNotch size={17} className="spin" />}
-              {recommending ? "正在理解需求…" : "按需求智能填写"}
+              {recommending ? "正在整理需求…" : isPublicDemo ? "按需求填写参考建议" : "按需求智能填写"}
             </button>
             {recommending && (
               <button
@@ -577,7 +578,7 @@ function IntakeGuide({
             ? "请先点击上方“补全详细需求”。"
             : !draft.request.trim()
               ? "先在第 1 步用自己的话写出需求。"
-              : "调用当前配置的 AI，可能需要一点时间。建议填入草稿后可以改；未知实物接线和姿势角度不会猜。"}
+              : isPublicDemo ? "使用浏览器内的参考规则整理草稿，不调用 AI。仅推荐可识别的任务；已有内容保留，未知硬件不猜。" : "调用当前配置的 AI，可能需要一点时间。建议填入草稿后可以改；未知实物接线和姿势角度不会猜。"}
         </small>
         {recommending && (
           <p role="status">
@@ -1526,7 +1527,7 @@ function IntakeGuide({
                     : error
                       ? "暂时无法检查"
                       : readiness?.can_plan
-                        ? "必要信息已齐，可以交给 AI 拆分"
+                        ? isPublicDemo ? "可以预览需求摘要；实际生成需在本机核对" : "必要信息已齐，可以交给 AI 拆分"
                         : readiness?.status === "unsupported"
                           ? "这份需求可以保存，当前还不能执行"
                           : "还需要补充一些信息"}
@@ -1795,7 +1796,7 @@ function IntakeGuide({
               ) : (
                 <Check size={16} />
               )}
-              让 AI 拆分
+              {isPublicDemo ? "预览分工与核对流程" : "让 AI 拆分"}
             </button>
           )}
         </div>
