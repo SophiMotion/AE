@@ -1,0 +1,369 @@
+{
+  "version": 1,
+  "source": "Assembly testing website 4.step",
+  "sourceSha256": "a8435cbd1f3598f699c9bc4f95bd08b898c1e92c5d29baf5d6665e07fb7ed3de",
+  "parameters": {
+    "base_length": 900,
+    "base_width": 850,
+    "base_height": 200,
+    "total_height": 1875.75,
+    "wheel_base": 500,
+    "od_tire": 150,
+    "tire_thickness": 20,
+    "thin_sheet": 2,
+    "structural_sheet": 5,
+    "base_angle": 30,
+    "base_middle_length": 100,
+    "wheel_track": 600,
+    "shoulder_length": 450,
+    "hip_length": 400,
+    "hip_position": 800,
+    "tube_diameter": 50,
+    "tube_thickness": 2,
+    "upper_arm_length": 200,
+    "lower_arm_length": 300,
+    "thigh_length": 250,
+    "lower_leg_length": 250
+  },
+  "limbs": {
+    "pose": {
+      "arm_l": {
+        "shoulder_lift": 0,
+        "shoulder_swing": 0,
+        "arm_twist": 0,
+        "elbow_bend": 0,
+        "wrist_rotation": 0,
+        "clamp": 0
+      },
+      "arm_r": {
+        "shoulder_lift": 0,
+        "shoulder_swing": 0,
+        "arm_twist": 0,
+        "elbow_bend": 0,
+        "wrist_rotation": 0,
+        "clamp": 0
+      },
+      "leg_l": {
+        "shoulder_lift": 0,
+        "shoulder_swing": 0,
+        "arm_twist": 0,
+        "elbow_bend": 0,
+        "wrist_rotation": 0,
+        "clamp": 0
+      },
+      "leg_r": {
+        "shoulder_lift": 0,
+        "shoulder_swing": 0,
+        "arm_twist": 0,
+        "elbow_bend": 0,
+        "wrist_rotation": 0,
+        "clamp": 0
+      }
+    },
+    "movable": {
+      "arm_l": false,
+      "arm_r": false,
+      "leg_l": false,
+      "leg_r": false
+    }
+  },
+  "motors": {
+    "shoulder_l": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "shoulder_r": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "knee_l": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "knee_r": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "elbow_l": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "elbow_r": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "wrist_l": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "wrist_r": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "base_l": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    },
+    "base_r": {
+      "selected": "current",
+      "options": {
+        "current": {
+          "name": "Current motor (unspecified)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_a": {
+          "name": "Option A (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        },
+        "option_b": {
+          "name": "Option B (placeholder)",
+          "type": "Unspecified",
+          "torque": null,
+          "speed": null,
+          "voltage": null,
+          "ratio": null
+        }
+      }
+    }
+  },
+  "head": {
+    "pose": {
+      "rotation": 0,
+      "tilt": 0
+    },
+    "movable": false
+  }
+}

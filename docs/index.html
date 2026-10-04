@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>AE · 机器人自动工程体验</title>
+  <meta name="description" content="体验机器人需求填写，查看 Sophicore 三维结构与 ROS、ESP32 本机验证结果。">
+  <meta property="og:title" content="AE · 机器人自动工程体验"><meta property="og:description" content="从一句动作需求，到 ROS 和 ESP32。体验需求整理，查看已验证的招手示例。">
+  <meta name="theme-color" content="#101416">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23101416'/%3E%3Cpath d='M13 47 27 16h9l15 31H40l-3-8H25l-3 8zm15-16h7l-3-9z' fill='%23f26747'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="#workbench"><b>AE</b><span>Auto Engineering</span></a><span class="edition">分享体验版</span><a href="./guide.html" class="quiet">项目说明</a><button id="share" class="quiet">复制链接</button></header>
+<div class="workspace">
+<aside><div class="aside-label">演示工程</div><div class="project"><span class="project-icon">S</span><div><strong>Sophicore</strong><small>右臂招手三次</small></div></div><nav aria-label="主要导航"><button data-tab="workbench" class="active">01 <span>需求与硬件</span></button><button data-tab="model">02 <span>模型与回放</span></button><button data-tab="results">03 <span>验证结果</span></button></nav><p class="aside-note">可体验填写，查看已有记录。<br>不连接本机，不启动机器人。</p></aside>
+<main>
+<section data-page="workbench">
+  <div class="page-heading"><div><p class="eyebrow">WORKSPACE / 01</p><h1>把动作说清楚。</h1><p>先描述需求，再核对动作、关节和硬件。</p></div><span class="tag">填写体验</span></div>
+  <div class="notice">这里可以体验需求整理。你填写的内容只保留在当前页面，不会上传，也不会启动代码生成或仿真。</div>
+  <div class="panel"><div class="section-heading"><h2>你希望机器人做什么</h2><span>01 / 需求</span></div><label for="request">用一句话描述动作</label><textarea id="request" rows="3" maxlength="1500">让机器人抬起右手，招手三次，最后把手臂放到身体旁边。</textarea><div class="action-row"><button id="fill" class="primary">用招手示例填写</button><span class="muted">固定示例，可修改；不是在线 AI。</span></div><p id="fill-message" role="status" class="feedback"></p></div>
+  <div class="panel"><div class="section-heading"><h2>把需求拆成能核对的内容</h2><span>02 / 动作与硬件</span></div>
+  <div class="form-grid"><div><label for="model-choice">机器人结构</label><select id="model-choice"><option>Sophicore 参考模型</option></select></div><div><label for="board">编译目标</label><select id="board"><option value="">还不确定</option><option>ESP32-S3</option><option>ESP32</option></select><small>编译目标不代表已经选定实物板。</small></div><div><label for="action">动作类型</label><select id="action"><option value="">请选择</option><option>抬起、往返招手、放下</option><option>自定义动作（仅记录）</option></select></div><div><label for="repeat">完整往返几次</label><input id="repeat" type="number" min="1" max="20" step="1" placeholder="例如 3"><small>摆出去再摆回来，算一次。</small></div><div><label for="speed">最快每秒转多少 · °/s</label><input id="speed" type="number" min="1" max="90" placeholder="例如 30"><div class="choices"><button data-fill="speed:15">慢速 15°</button><button data-fill="speed:30">推荐 30°</button><button data-fill="speed:45">较快 45°</button></div></div><div><label for="error">允许多大误差 · °</label><input id="error" type="number" min="0.1" max="10" step="0.1" placeholder="例如 2"><div class="choices"><button data-fill="error:1">1°</button><button data-fill="error:2">推荐 2°</button><button data-fill="error:3">3°</button></div></div></div>
+  <label for="joints">需要配合的关节</label><textarea id="joints" rows="2" placeholder="示例：右肩、右肘、右腕；具体角度还需核对"></textarea>
+  <label for="ending">动作结束时的姿势</label><input id="ending" placeholder="例如：手臂自然垂在身体旁边">
+  <details><summary>电机、驱动和接线资料</summary><label for="hardware">有资料就补充，不确定可以留空</label><textarea id="hardware" rows="3" placeholder="电机型号、驱动型号、传感器、供电、接线图或手册。未知信息不做猜测。"></textarea></details>
+  </div>
+  <div class="panel"><div class="section-heading"><h2>核对后再继续</h2><span>03 / 需求摘要</span></div><div id="draft-summary" class="summary">先填写或采用上面的示例。</div><label class="checkbox"><input type="checkbox" id="review"><span>我已经读过这份需求摘要。</span></label><div class="action-row"><button id="download" class="secondary">下载我的需求</button><button data-open="results" class="quiet">查看已有验证结果</button></div><p class="muted">在完整本机版中，人工核对后才进入生成、编译和仿真。这里的结果始终属于原始招手示例。</p></div>
+</section>
+<section data-page="model" hidden>
+  <div class="page-heading"><div><p class="eyebrow">SOPHICORE / 02</p><h1>动作，看得见。</h1><p>旋转查看原始结构，回放已有的六轴仿真记录。</p></div><span class="tag">记录回放</span></div>
+  <div class="viewer-panel"><div class="viewer-header"><strong>Sophicore · 506 个部件</strong><button id="reset-view" class="quiet" disabled>重置视角</button></div><div id="viewer"><div id="model-cover"><span class="model-mark">3D</span><h2>查看完整机器人</h2><p>点击后加载模型，首次打开需等待片刻。</p><button id="load-model" class="primary">加载 3D 模型</button><p id="model-status" role="status"></p></div></div><div class="viewer-caption">单指拖动旋转 · 双指缩放。模型网格用于外观展示，仿真使用的是简化物理模型。</div><div class="playback"><button id="play" class="secondary" disabled>播放记录</button><label class="sr-only" for="timeline">回放进度</label><input id="timeline" type="range" min="0" max="100" value="0" disabled><output id="clock">0.00 s</output></div><div class="replay-state"><span id="stage">初始姿势</span><span>实际采样 · 约 27 秒</span></div></div>
+  <div class="panel"><h2>这段回放说明什么</h2><p>六个通道同步完成“准备招手、来回三次、放下”。画面使用本机 ROS 仿真的关节记录，不会根据你刚才填写的新需求重新计算。</p><div class="compact-grid"><div><b>ROS</b><span>控制动作顺序与目标姿势</span></div><div><b>ESP32</b><span>编译控制程序，测试共用控制逻辑</span></div><div><b>人工核对</b><span>确认动作和参数后再运行</span></div></div><p class="muted">当前证据不包含实物运动、负载、平衡或真实碰撞验证。</p><a href="https://github.com/SophiMotion/sophicore-robot-cle" target="_blank" rel="noopener noreferrer">查看 Sophicore 结构项目</a></div>
+</section>
+<section data-page="results" hidden>
+  <div class="page-heading"><div><p class="VERIFICATION eyebrow">VERIFICATION / 03</p><h1>每一步，有记录。</h1><p>右臂抬起，招手三次，最后放到身体旁边。</p></div><span class="tag success">本机验证通过</span></div>
+  <div class="notice">以下为 2026-10-04 已有验收记录。修改体验表单不会改变这些结果。ESP32 已编译，未烧录、未连接实物。</div>
+  <div id="metrics" class="metrics"><div><strong>—</strong><span>检查项通过</span></div></div>
+  <div class="panel"><div class="section-heading"><h2>实际角度与目标角度</h2><span>第一轮正常测试</span></div><label for="chart-joint">查看关节</label><select id="chart-joint"></select><div class="legend"><span class="actual-line">实际记录</span><span class="target-line">目标角度</span></div><div id="chart" aria-label="关节角度随时间变化"></div><p id="chart-note" class="muted"></p></div>
+  <div class="panel"><div class="section-heading"><h2>正常动作与异常停止</h2><span>6 个测试场景</span></div><div id="cases" class="case-list"></div></div>
+  <div class="panel"><div class="section-heading"><h2>ROS 和 ESP32 各做了什么</h2><span>证据范围</span></div><div class="evidence-grid"><article><span class="evidence-number">01</span><h3>ROS 程序</h3><p>已经编译，并在 ROS 2 Humble、Gazebo 仿真中运行。三个正常场景均完成 8 个姿势、3 次往返。</p></article><article><span class="evidence-number">02</span><h3>ESP32 程序</h3><p>ESP32 与 ESP32-S3 两个目标均编译通过。控制板未烧录，也未在实物上运行。</p></article><article><span class="evidence-number">03</span><h3>两端通信</h3><p>在本机虚拟串口中测试指令、反馈与停止逻辑。固件的共用控制代码参与了测试。</p></article></div><details><summary>查看验证条件和数据出处</summary><p>仿真采用固定底座、零重力与简化物理参数。通过这些检查不等于实物验证通过，也不能证明走路、平衡、负载或碰撞安全。</p><p>本示例使用已核对的动作参数和固定代码模板；不是访问本页面时由 AI 重新生成。</p><p id="source-note"></p><a href="./results.json" download="Sophicore-验证摘要.json">下载公开验证数据</a></details></div>
+</section>
+<footer><span>AE / Auto Engineering</span><span>需求体验 · 模型回放 · 验证记录</span></footer>
+</main></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<noscript><p>请在启用 JavaScript 的浏览器中打开此页面。此站点为静态体验版，不会执行 ROS 或连接机器人。</p></noscript>
+</body></html>

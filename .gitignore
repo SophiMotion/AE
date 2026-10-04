@@ -1,0 +1,19 @@
+# Local runtime and private project data
+.tools/
+runs/
+.codex/
+.env
+.env.*
+!.env.example
+*.sqlite3*
+*.db
+__pycache__/
+*.py[cod]
+.pytest_cache/
+web/node_modules/
+web/dist/
+node_modules/
+knowledge/structure-*.json
+qa-*.png
+qa-*.json
+*.zip

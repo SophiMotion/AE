@@ -1,0 +1,1806 @@
+{
+  "schema_version": 1,
+  "source_revision": "3466db3591c16acc0c017782140d2df183763a74",
+  "source_step_sha256": "a8435cbd1f3598f699c9bc4f95bd08b898c1e92c5d29baf5d6665e07fb7ed3de",
+  "model_json_sha256": "e4fecfb762a35b013897a2bd0b2a40e64e0dbc00918e642b5266a92ac291f9e2",
+  "scope": "CAD preview kinematics; not measured hardware",
+  "units": {
+    "length": "m",
+    "angle": "rad"
+  },
+  "frame_convention": "source CAD: +X left, front -Y, +Z up; right handed; preserved explicitly, not relabelled REP-103",
+  "sources": [
+    {
+      "archived_file": ".tools\\sophicore-upstream-README.md",
+      "sha256": "72a09656cb07ebd0eb39563d200e72ddf14743e4b0df77c1c9c6c56569888fbe"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-arms.ts",
+      "sha256": "54371dcbddc98983b10facbf85556f06bb5f7b94a887a1624d4160ee5bc21b7b"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-geometry.ts",
+      "sha256": "2e070150179c8256b1d478beb7802a8a017867859bc98be5a96793d174210e8d"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-head.ts",
+      "sha256": "c992e69b6f34285c95beb34b825218c2d22aaa450a563deb7344f1a1016cfbbb"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-limbs.ts",
+      "sha256": "b7b9da1fdbe8ba3b74121210b5c8ff600ea1dd8c7e8d365417d72be2beee0586"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-main.ts",
+      "sha256": "82d037e9d395dca2a26f62167676a278b8576729bd4cf5e25a240d2a377f4619"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-model4-tubes.json",
+      "sha256": "1010dbf33c718f76f400ad31517ba30313feb6f74cbae44df63c37e5650c47d7"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-motors.ts",
+      "sha256": "b76a26ae6fd888e01505b26302bd7d69b2a43e5403cbc9a4f0d86c4b98b269a9"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-parameters.ts",
+      "sha256": "d59009fc719a4cd499d3bc8b014c2dc5fa424685d53da20205ce7e0f714b6a8f"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-src-viewer.ts",
+      "sha256": "33a7f422d2738a08d15db8544066ff4cd74713d1a553e2a8d4ae0cc871adc49c"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-tests-grippers.test.ts",
+      "sha256": "e913de9f90402fc99c9d695373bc72c580ed5cb67b2143a427a638d1760df20b"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-tests-head.test.ts",
+      "sha256": "73a160bfde03a3e0a0f9191abe4c71c2bce998f6185b0d4013855e42963bf961"
+    },
+    {
+      "archived_file": ".tools\\sophicore-upstream-tests-limbs.test.ts",
+      "sha256": "44327ebf6073bcbd7aed427e6c406a8c48cfa836b9ea94202b3f726467817a26"
+    }
+  ],
+  "joints": [
+    {
+      "name": "arm_l_shoulder_lift",
+      "label": "左肩抬起",
+      "type": "revolute",
+      "parent": "base_link",
+      "child": "arm_l_shoulder_lift_link",
+      "origin": {
+        "xyz": [
+          0.25,
+          -0.02,
+          1.724
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": -3.141592653589793,
+        "upper": 3.141592653589793
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_l.shoulder_lift",
+      "source": {
+        "limb": "arm_l",
+        "stage": 1,
+        "pivot_mm": [
+          250.0,
+          -20,
+          1724.0
+        ],
+        "axis_in_source_frame": [
+          1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.25,
+        -0.02,
+        1.724
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793
+    },
+    {
+      "name": "arm_l_shoulder_swing",
+      "label": "左肩侧摆",
+      "type": "revolute",
+      "parent": "arm_l_shoulder_lift_link",
+      "child": "arm_l_shoulder_swing_link",
+      "origin": {
+        "xyz": [
+          0.0705,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0,
+        1,
+        0
+      ],
+      "limits": {
+        "lower": -1.7453292519943295,
+        "upper": 0.6981317007977318
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_l.shoulder_swing",
+      "source": {
+        "limb": "arm_l",
+        "stage": 2,
+        "pivot_mm": [
+          320.5,
+          -20,
+          1724.0
+        ],
+        "axis_in_source_frame": [
+          0,
+          1,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0705,
+        0.0,
+        0.0
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.7453292519943295,
+      "upper": 0.6981317007977318
+    },
+    {
+      "name": "arm_l_arm_twist",
+      "label": "左上臂旋转",
+      "type": "revolute",
+      "parent": "arm_l_shoulder_swing_link",
+      "child": "arm_l_arm_twist_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          0.0,
+          -0.321
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0,
+        0,
+        1
+      ],
+      "limits": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_l.arm_twist",
+      "source": {
+        "limb": "arm_l",
+        "stage": 3,
+        "pivot_mm": [
+          320.5,
+          -20,
+          1403.0
+        ],
+        "axis_in_source_frame": [
+          0,
+          0,
+          1
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        0.0,
+        -0.321
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966
+    },
+    {
+      "name": "arm_l_elbow_bend",
+      "label": "左肘弯曲",
+      "type": "revolute",
+      "parent": "arm_l_arm_twist_link",
+      "child": "arm_l_elbow_bend_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          0.0,
+          -0.02825
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": 0.0,
+        "upper": 2.356194490192345
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_l.elbow_bend",
+      "source": {
+        "limb": "arm_l",
+        "stage": 4,
+        "pivot_mm": [
+          320.5,
+          -20,
+          1374.75
+        ],
+        "axis_in_source_frame": [
+          1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        0.0,
+        -0.02825
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": 0.0,
+      "upper": 2.356194490192345
+    },
+    {
+      "name": "arm_l_wrist_rotation",
+      "label": "左手腕旋转",
+      "type": "revolute",
+      "parent": "arm_l_elbow_bend_link",
+      "child": "arm_l_wrist_rotation_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          0.0,
+          -0.3792307
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0,
+        0,
+        1
+      ],
+      "limits": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_l.wrist_rotation",
+      "source": {
+        "limb": "arm_l",
+        "stage": 5,
+        "pivot_mm": [
+          320.5,
+          -20,
+          995.5193
+        ],
+        "axis_in_source_frame": [
+          0,
+          0,
+          1
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        0.0,
+        -0.3792307
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966
+    },
+    {
+      "name": "arm_l_clamp",
+      "label": "左夹爪开合",
+      "type": "revolute",
+      "parent": "arm_l_wrist_rotation_link",
+      "child": "arm_l_clamp_link",
+      "origin": {
+        "xyz": [
+          -0.0019845622600000185,
+          -0.02650605813,
+          -0.025399775720000094
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0.7071067811865476,
+        -0.7071067811865476,
+        0
+      ],
+      "limits": {
+        "lower": 0.0,
+        "upper": 0.7853981633974483
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_l.clamp",
+      "source": {
+        "limb": "arm_l",
+        "stage": 6,
+        "pivot_mm": [
+          318.51543774,
+          -46.50605813,
+          970.11952428
+        ],
+        "axis_in_source_frame": [
+          0.7071067811865476,
+          -0.7071067811865476,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        -0.0019845622600000185,
+        -0.02650605813,
+        -0.025399775720000094
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": 0.0,
+      "upper": 0.7853981633974483
+    },
+    {
+      "name": "arm_r_shoulder_lift",
+      "label": "右肩抬起",
+      "type": "revolute",
+      "parent": "base_link",
+      "child": "arm_r_shoulder_lift_link",
+      "origin": {
+        "xyz": [
+          -0.25,
+          -0.02,
+          1.724
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": -3.141592653589793,
+        "upper": 3.141592653589793
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_r.shoulder_lift",
+      "source": {
+        "limb": "arm_r",
+        "stage": 1,
+        "pivot_mm": [
+          -250.0,
+          -20,
+          1724.0
+        ],
+        "axis_in_source_frame": [
+          1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        -0.25,
+        -0.02,
+        1.724
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793
+    },
+    {
+      "name": "arm_r_shoulder_swing",
+      "label": "右肩侧摆",
+      "type": "revolute",
+      "parent": "arm_r_shoulder_lift_link",
+      "child": "arm_r_shoulder_swing_link",
+      "origin": {
+        "xyz": [
+          -0.0705,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0,
+        -1,
+        0
+      ],
+      "limits": {
+        "lower": -1.7453292519943295,
+        "upper": 0.6981317007977318
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_r.shoulder_swing",
+      "source": {
+        "limb": "arm_r",
+        "stage": 2,
+        "pivot_mm": [
+          -320.5,
+          -20,
+          1724.0
+        ],
+        "axis_in_source_frame": [
+          0,
+          -1,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        -0.0705,
+        0.0,
+        0.0
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.7453292519943295,
+      "upper": 0.6981317007977318
+    },
+    {
+      "name": "arm_r_arm_twist",
+      "label": "右上臂旋转",
+      "type": "revolute",
+      "parent": "arm_r_shoulder_swing_link",
+      "child": "arm_r_arm_twist_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          0.0,
+          -0.351
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0,
+        0,
+        -1
+      ],
+      "limits": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_r.arm_twist",
+      "source": {
+        "limb": "arm_r",
+        "stage": 3,
+        "pivot_mm": [
+          -320.5,
+          -20,
+          1373.0
+        ],
+        "axis_in_source_frame": [
+          0,
+          0,
+          -1
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        0.0,
+        -0.351
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966
+    },
+    {
+      "name": "arm_r_elbow_bend",
+      "label": "右肘弯曲",
+      "type": "revolute",
+      "parent": "arm_r_arm_twist_link",
+      "child": "arm_r_elbow_bend_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          0.0,
+          -0.02825
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": 0.0,
+        "upper": 2.356194490192345
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_r.elbow_bend",
+      "source": {
+        "limb": "arm_r",
+        "stage": 4,
+        "pivot_mm": [
+          -320.5,
+          -20,
+          1344.75
+        ],
+        "axis_in_source_frame": [
+          1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        0.0,
+        -0.02825
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": 0.0,
+      "upper": 2.356194490192345
+    },
+    {
+      "name": "arm_r_wrist_rotation",
+      "label": "右手腕旋转",
+      "type": "revolute",
+      "parent": "arm_r_elbow_bend_link",
+      "child": "arm_r_wrist_rotation_link",
+      "origin": {
+        "xyz": [
+          1.999999999998181e-05,
+          -1.9999999999999575e-05,
+          -0.37945000000000007
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0,
+        0,
+        1
+      ],
+      "limits": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_r.wrist_rotation",
+      "source": {
+        "limb": "arm_r",
+        "stage": 5,
+        "pivot_mm": [
+          -320.48,
+          -20.02,
+          965.3
+        ],
+        "axis_in_source_frame": [
+          0,
+          0,
+          1
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        1.999999999998181e-05,
+        -1.9999999999999575e-05,
+        -0.37945000000000007
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966
+    },
+    {
+      "name": "arm_r_clamp",
+      "label": "右夹爪开合",
+      "type": "revolute",
+      "parent": "arm_r_wrist_rotation_link",
+      "child": "arm_r_clamp_link",
+      "origin": {
+        "xyz": [
+          -0.001979364750000002,
+          -0.026517038520000005,
+          -0.025649357099999975
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0.7071067811865476,
+        -0.7071067811865476,
+        0
+      ],
+      "limits": {
+        "lower": 0.0,
+        "upper": 0.7853981633974483
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.arm_r.clamp",
+      "source": {
+        "limb": "arm_r",
+        "stage": 6,
+        "pivot_mm": [
+          -322.45936475,
+          -46.53703852,
+          939.6506429
+        ],
+        "axis_in_source_frame": [
+          0.7071067811865476,
+          -0.7071067811865476,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        -0.001979364750000002,
+        -0.026517038520000005,
+        -0.025649357099999975
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": 0.0,
+      "upper": 0.7853981633974483
+    },
+    {
+      "name": "leg_l_shoulder_lift",
+      "label": "左髋抬起",
+      "type": "revolute",
+      "parent": "base_link",
+      "child": "leg_l_shoulder_lift_link",
+      "origin": {
+        "xyz": [
+          0.16945,
+          -0.02,
+          1.00875
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.leg_l.shoulder_lift",
+      "source": {
+        "limb": "leg_l",
+        "stage": 2,
+        "pivot_mm": [
+          169.45,
+          -20,
+          1008.75
+        ],
+        "axis_in_source_frame": [
+          1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.16945,
+        -0.02,
+        1.00875
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966
+    },
+    {
+      "name": "leg_l_elbow_bend",
+      "label": "左膝弯曲",
+      "type": "revolute",
+      "parent": "leg_l_shoulder_lift_link",
+      "child": "leg_l_elbow_bend_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          0.0,
+          -0.31125
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        -1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": 0.0,
+        "upper": 2.356194490192345
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.leg_l.elbow_bend",
+      "source": {
+        "limb": "leg_l",
+        "stage": 3,
+        "pivot_mm": [
+          169.45,
+          -20,
+          697.5
+        ],
+        "axis_in_source_frame": [
+          -1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        0.0,
+        -0.31125
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": 0.0,
+      "upper": 2.356194490192345
+    },
+    {
+      "name": "leg_r_shoulder_lift",
+      "label": "右髋抬起",
+      "type": "revolute",
+      "parent": "base_link",
+      "child": "leg_r_shoulder_lift_link",
+      "origin": {
+        "xyz": [
+          -0.16945,
+          -0.02,
+          1.00875
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.leg_r.shoulder_lift",
+      "source": {
+        "limb": "leg_r",
+        "stage": 2,
+        "pivot_mm": [
+          -169.45,
+          -20,
+          1008.75
+        ],
+        "axis_in_source_frame": [
+          1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        -0.16945,
+        -0.02,
+        1.00875
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966
+    },
+    {
+      "name": "leg_r_elbow_bend",
+      "label": "右膝弯曲",
+      "type": "revolute",
+      "parent": "leg_r_shoulder_lift_link",
+      "child": "leg_r_elbow_bend_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          0.0,
+          -0.31125
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        -1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": 0.0,
+        "upper": 2.356194490192345
+      },
+      "initial_position": 0.0,
+      "source_parameter": "limbs.pose.leg_r.elbow_bend",
+      "source": {
+        "limb": "leg_r",
+        "stage": 3,
+        "pivot_mm": [
+          -169.45,
+          -20,
+          697.5
+        ],
+        "axis_in_source_frame": [
+          -1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        0.0,
+        -0.31125
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": 0.0,
+      "upper": 2.356194490192345
+    },
+    {
+      "name": "head_rotation",
+      "label": "头部转向",
+      "type": "revolute",
+      "parent": "base_link",
+      "child": "head_rotation_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          -0.02,
+          1.787
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        0,
+        0,
+        1
+      ],
+      "limits": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      },
+      "initial_position": 0.0,
+      "source_parameter": "head.pose.rotation",
+      "source": {
+        "limb": "head",
+        "stage": 1,
+        "pivot_mm": [
+          0,
+          -20,
+          1787.0
+        ],
+        "axis_in_source_frame": [
+          0,
+          0,
+          1
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        -0.02,
+        1.787
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966
+    },
+    {
+      "name": "head_tilt",
+      "label": "头部俯仰",
+      "type": "revolute",
+      "parent": "head_rotation_link",
+      "child": "head_tilt_link",
+      "origin": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.03775
+        ],
+        "rpy": [
+          0,
+          0,
+          0
+        ]
+      },
+      "axis": [
+        -1,
+        0,
+        0
+      ],
+      "limits": {
+        "lower": -0.5235987755982988,
+        "upper": 0.5235987755982988
+      },
+      "initial_position": 0.0,
+      "source_parameter": "head.pose.tilt",
+      "source": {
+        "limb": "head",
+        "stage": 2,
+        "pivot_mm": [
+          0,
+          -20,
+          1824.75
+        ],
+        "axis_in_source_frame": [
+          -1,
+          0,
+          0
+        ],
+        "limit_scope": "source_preview_not_hardware"
+      },
+      "xyz": [
+        0.0,
+        0.0,
+        0.03775
+      ],
+      "rpy": [
+        0,
+        0,
+        0
+      ],
+      "lower": -0.5235987755982988,
+      "upper": 0.5235987755982988
+    }
+  ],
+  "links": [
+    {
+      "name": "base_link",
+      "mesh_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        159,
+        160,
+        165,
+        181,
+        182,
+        183,
+        184,
+        185,
+        194,
+        196,
+        197,
+        198,
+        199,
+        200,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        212,
+        213,
+        214,
+        215,
+        216,
+        217,
+        218,
+        219,
+        220,
+        221,
+        222,
+        223,
+        224,
+        225,
+        226,
+        227,
+        228,
+        229,
+        230,
+        231,
+        232,
+        233,
+        234,
+        235,
+        236,
+        237,
+        238,
+        239,
+        240,
+        241,
+        242,
+        261,
+        302,
+        303,
+        304,
+        305,
+        306,
+        307,
+        308,
+        309,
+        310,
+        311,
+        312,
+        313,
+        314,
+        315,
+        316,
+        317,
+        318,
+        319,
+        320,
+        321,
+        322,
+        323,
+        324,
+        325,
+        326,
+        327,
+        328,
+        329,
+        330,
+        331,
+        332,
+        333,
+        334,
+        335,
+        336,
+        337,
+        338,
+        339,
+        340,
+        341,
+        342,
+        343,
+        344,
+        345,
+        346,
+        347,
+        348,
+        349,
+        350,
+        351,
+        352,
+        353,
+        354,
+        355,
+        356,
+        357,
+        358,
+        359,
+        360,
+        361,
+        362,
+        363,
+        364,
+        365,
+        366,
+        487,
+        488,
+        489,
+        490,
+        491,
+        492,
+        493
+      ],
+      "mesh_origin_m": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "arm_l_shoulder_lift_link",
+      "mesh_ids": [
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        166,
+        167
+      ],
+      "mesh_origin_m": [
+        0.25,
+        -0.02,
+        1.724
+      ]
+    },
+    {
+      "name": "arm_l_shoulder_swing_link",
+      "mesh_ids": [
+        153,
+        154,
+        155,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173
+      ],
+      "mesh_origin_m": [
+        0.3205,
+        -0.02,
+        1.724
+      ]
+    },
+    {
+      "name": "arm_l_arm_twist_link",
+      "mesh_ids": [
+        156,
+        157,
+        174,
+        175,
+        179
+      ],
+      "mesh_origin_m": [
+        0.3205,
+        -0.02,
+        1.403
+      ]
+    },
+    {
+      "name": "arm_l_elbow_bend_link",
+      "mesh_ids": [
+        158,
+        176,
+        177,
+        178,
+        180,
+        267,
+        268,
+        269,
+        271,
+        272,
+        273,
+        274,
+        275,
+        276,
+        277,
+        278,
+        279,
+        280,
+        300,
+        301
+      ],
+      "mesh_origin_m": [
+        0.3205,
+        -0.02,
+        1.37475
+      ]
+    },
+    {
+      "name": "arm_l_wrist_rotation_link",
+      "mesh_ids": [
+        270,
+        281,
+        282,
+        283,
+        284,
+        285,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296
+      ],
+      "mesh_origin_m": [
+        0.3205,
+        -0.02,
+        0.9955193
+      ]
+    },
+    {
+      "name": "arm_l_clamp_link",
+      "mesh_ids": [
+        286,
+        297,
+        298,
+        299
+      ],
+      "mesh_origin_m": [
+        0.31851543773999996,
+        -0.04650605813,
+        0.9701195242799999
+      ]
+    },
+    {
+      "name": "arm_r_shoulder_lift_link",
+      "mesh_ids": [
+        367,
+        368,
+        369,
+        370,
+        371,
+        372,
+        373,
+        374,
+        375,
+        376,
+        377,
+        378,
+        379,
+        380,
+        381,
+        382,
+        383,
+        384,
+        385,
+        386,
+        387,
+        388,
+        389,
+        390,
+        391,
+        392,
+        393,
+        394,
+        395,
+        396,
+        397,
+        398,
+        399,
+        400,
+        401,
+        402,
+        403,
+        404,
+        405,
+        406,
+        407,
+        408,
+        409,
+        410,
+        411,
+        412,
+        413,
+        414,
+        415,
+        416,
+        417,
+        418,
+        419,
+        420,
+        421,
+        422,
+        423,
+        424,
+        425,
+        426,
+        427,
+        428,
+        429,
+        430,
+        431,
+        432
+      ],
+      "mesh_origin_m": [
+        -0.25,
+        -0.02,
+        1.724
+      ]
+    },
+    {
+      "name": "arm_r_shoulder_swing_link",
+      "mesh_ids": [
+        433,
+        434,
+        435,
+        436,
+        437,
+        438,
+        439,
+        440,
+        441
+      ],
+      "mesh_origin_m": [
+        -0.3205,
+        -0.02,
+        1.724
+      ]
+    },
+    {
+      "name": "arm_r_arm_twist_link",
+      "mesh_ids": [
+        442,
+        443,
+        444,
+        445,
+        446
+      ],
+      "mesh_origin_m": [
+        -0.3205,
+        -0.02,
+        1.373
+      ]
+    },
+    {
+      "name": "arm_r_elbow_bend_link",
+      "mesh_ids": [
+        447,
+        448,
+        449,
+        450,
+        451,
+        452,
+        453,
+        454,
+        455,
+        456,
+        458,
+        459,
+        460,
+        461,
+        462,
+        463,
+        464,
+        465,
+        466,
+        467
+      ],
+      "mesh_origin_m": [
+        -0.3205,
+        -0.02,
+        1.34475
+      ]
+    },
+    {
+      "name": "arm_r_wrist_rotation_link",
+      "mesh_ids": [
+        457,
+        468,
+        469,
+        470,
+        471,
+        472,
+        474,
+        475,
+        476,
+        477,
+        478,
+        479,
+        480,
+        481,
+        482,
+        483
+      ],
+      "mesh_origin_m": [
+        -0.32048000000000004,
+        -0.02002,
+        0.9652999999999999
+      ]
+    },
+    {
+      "name": "arm_r_clamp_link",
+      "mesh_ids": [
+        473,
+        484,
+        485,
+        486
+      ],
+      "mesh_origin_m": [
+        -0.32245936475000003,
+        -0.046537038520000004,
+        0.9396506429
+      ]
+    },
+    {
+      "name": "leg_l_shoulder_lift_link",
+      "mesh_ids": [
+        161,
+        162,
+        163,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191
+      ],
+      "mesh_origin_m": [
+        0.16945,
+        -0.02,
+        1.00875
+      ]
+    },
+    {
+      "name": "leg_l_elbow_bend_link",
+      "mesh_ids": [
+        164,
+        192,
+        193
+      ],
+      "mesh_origin_m": [
+        0.16945,
+        -0.02,
+        0.6975
+      ]
+    },
+    {
+      "name": "leg_r_shoulder_lift_link",
+      "mesh_ids": [
+        494,
+        495,
+        496,
+        497,
+        498,
+        499,
+        500,
+        501,
+        502
+      ],
+      "mesh_origin_m": [
+        -0.16945,
+        -0.02,
+        1.00875
+      ]
+    },
+    {
+      "name": "leg_r_elbow_bend_link",
+      "mesh_ids": [
+        503,
+        504,
+        505
+      ],
+      "mesh_origin_m": [
+        -0.16945,
+        -0.02,
+        0.6975
+      ]
+    },
+    {
+      "name": "head_rotation_link",
+      "mesh_ids": [
+        195,
+        201,
+        202,
+        211,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250,
+        251,
+        252,
+        253,
+        254,
+        255,
+        256,
+        257,
+        258,
+        259,
+        260,
+        262,
+        263,
+        264,
+        266
+      ],
+      "mesh_origin_m": [
+        0.0,
+        -0.02,
+        1.787
+      ]
+    },
+    {
+      "name": "head_tilt_link",
+      "mesh_ids": [
+        265
+      ],
+      "mesh_origin_m": [
+        0.0,
+        -0.02,
+        1.82475
+      ]
+    }
+  ],
+  "assumptions": {
+    "kinematics": "原站从 CAD 安装件推定的轴心与角度范围；用于本机运动流程验证，未经实物标定。",
+    "inertia": "每个部件组采用 1 kg 数值占位质量，包围盒中心和均匀实心盒惯量；不是实际质量或负载能力。",
+    "gravity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "collision": "包围盒仅作显示和惯量占位，不启用碰撞；不能证明防碰撞、强度或夹爪极限。",
+    "base_fixed": true,
+    "control": "每次只运行所选一轴，其余轴固定在保存的原始姿态；理想速度执行器。",
+    "hardware": "驱动器型号、减速比、接线和扭矩尚未标定，禁止据此认定实物已可驱动。"
+  },
+  "kinematics_sha256": "b11d42410c2e35950fe914c5ba1ab805f1d713c7906bfa458222254f57aaf592"
+}
