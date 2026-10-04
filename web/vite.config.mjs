@@ -1,9 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  base: mode === "pages" ? "./" : "/",
+  define: { "import.meta.env.VITE_PUBLIC_DEMO": JSON.stringify(mode === "pages" ? "true" : "false") },
   build: {
-    outDir: "dist/client",
+    outDir: mode === "pages" ? "dist/pages" : "dist/client",
     rollupOptions: {
       output: {
         manualChunks: { chart: ["chart.js"], flow: ["@xyflow/react"] },
@@ -24,4 +26,4 @@ export default defineConfig({
     },
   },
   plugins: [react()],
-});
+}));

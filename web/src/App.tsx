@@ -44,6 +44,8 @@ import Library from "./Library";
 import Settings from "./Settings";
 import ProjectTools from "./ProjectTools";
 import { invalidateMotionReview } from "./motionPlan";
+import { isPublicDemo } from "./api";
+import { downloadDraft } from "./demoDownload";
 type Page = "workbench" | "library" | "settings";
 export default function App() {
   const [page, setPage] = useState<Page>("workbench");
@@ -75,11 +77,12 @@ export default function App() {
   const loadRuns = useCallback(async (p: Project, version: number) => {
     const data = await api<{ items: Run[] }>(`/projects/${p.id}/runs`);
     if (selectionVersion.current !== version) return;
-    setRuns(data.items);
+    setRuns(isPublicDemo ? data.items.filter((item) => item.project_id === p.id) : data.items);
     const active = p.latest_run_id
       ? await api<Run>(`/runs/${p.latest_run_id}`)
       : null;
-    if (selectionVersion.current === version) setRun(active);
+    if (selectionVersion.current === version)
+      setRun(isPublicDemo && active?.project_id !== p.id ? null : active);
   }, []);
   const selectProject = useCallback(
     async (p: Project) => {
@@ -140,7 +143,7 @@ export default function App() {
     } catch (e) {
       if (refreshId !== refreshVersion.current) return;
       setConnected(false);
-      setError(`无法连接本机后台：${(e as Error).message}`);
+      setError(`${isPublicDemo ? "分享版资源读取失败" : "无法连接本机后台"}：${(e as Error).message}`);
     } finally {
       if (refreshId === refreshVersion.current) setLoading(false);
     }
@@ -149,7 +152,7 @@ export default function App() {
     void refresh();
   }, [refresh]);
   useEffect(() => {
-    if (!project) return;
+    if (!project || isPublicDemo) return;
     let live = true;
     let polling = false;
     const timer = setInterval(async () => {
@@ -210,6 +213,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   const updateProject = (next: Project) => {
+    if (isPublicDemo) ++selectionVersion.current;
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set("project", next.id);
     window.history.replaceState(null, "", currentUrl);
@@ -225,6 +229,7 @@ export default function App() {
     );
     updateProject(next);
     setRun(null);
+    if (isPublicDemo) setRuns([]);
     return next;
   };
   const action = async (fn: () => Promise<void>) => {
@@ -241,17 +246,23 @@ export default function App() {
   const save = () =>
     action(async () => {
       await persist();
-      setToast("需求已保存。修改后的规格需要重新核对。");
+      setToast(isPublicDemo ? "草稿已保存在此浏览器。已有验收结果不会套用到新需求。" : "需求已保存。修改后的规格需要重新核对。");
     });
   const plan = () =>
     action(async () => {
       const current = dirty ? await persist() : project!;
       const next = await api<Project>(`/projects/${current.id}/plan`, {});
       updateProject(next);
+      if (isPublicDemo) { setRun(null); setRuns([]); }
       setStage(1);
     });
   const approve = () =>
     action(async () => {
+      if (isPublicDemo) {
+        setStage(2);
+        setToast("已进入流程说明。在线分享版不调用 AI、不生成代码，也不运行 ROS。");
+        return;
+      }
       if (!project) return;
       if (project.plan?.blocking_issues?.length)
         throw new Error(
@@ -279,6 +290,7 @@ export default function App() {
     });
   const repair = () =>
     action(async () => {
+      if (isPublicDemo) throw new Error("修改和重新运行需要启动完整本机平台。这里展示已有验收记录。");
       if (!run) return;
       if (dirty)
         throw new Error(
@@ -305,6 +317,7 @@ export default function App() {
     });
   const deploy = () =>
     action(async () => {
+      if (isPublicDemo) throw new Error("分享版没有 ROS 执行环境，部署复测需要在完整本机平台进行。");
       if (!run) return;
       if (dirty)
         throw new Error(
@@ -383,7 +396,7 @@ export default function App() {
         </nav>
         <div className={`connection ${connected ? "online" : ""}`}>
           <span />
-          {connected ? "本机服务已连接" : "本机服务未连接"}
+          {isPublicDemo ? "完整界面体验版" : connected ? "本机服务已连接" : "本机服务未连接"}
         </div>
       </header>
       <aside className={`sidebar ${sidebar ? "open" : ""}`}>
@@ -409,12 +422,13 @@ export default function App() {
           className="text-button sidebar-import"
           disabled={loading || busy}
           onClick={() => {
+            if (isPublicDemo) { downloadDraft(draft); setToast("已下载当前需求草稿；这不是生成后的 ROS／ESP32 工程。"); return; }
             setPage("workbench");
             setProjectTools("import");
             setSidebar(false);
           }}
         >
-          导入工程 ZIP
+          {isPublicDemo ? "下载当前需求草稿" : "导入工程 ZIP"}
         </button>
         <div className="project-list">
           {projects.map((item) => (
@@ -427,7 +441,7 @@ export default function App() {
               <Robot size={20} />
               <span>
                 <strong>{item.name || "未命名需求"}</strong>
-                <small>{statusLabels[item.status] || item.status}</small>
+                <small>{isPublicDemo && item.latest_run_id ? "已有本机验收示例" : statusLabels[item.status] || item.status}</small>
               </span>
               <CaretRight size={14} />
             </button>
@@ -438,7 +452,7 @@ export default function App() {
         </div>
         <div className="sidebar-bottom">
           <Folder size={17} />
-          <span>所有运行记录保存在本机</span>
+          <span>{isPublicDemo ? "草稿仅保存在你的浏览器" : "所有运行记录保存在本机"}</span>
         </div>
       </aside>
       {sidebar && (
@@ -449,6 +463,11 @@ export default function App() {
         />
       )}
       <main className={`main ${page !== "workbench" ? "secondary-page" : ""}`}>
+        {isPublicDemo && <div className="public-demo-notice" role="note">
+          <div><strong>完整工作台 · 分享体验版</strong><p>可填写 PRD、查看流程、旋转模型和回放已有结果。生成、编译与 ROS 运行需要完整本机平台；新草稿没有验收结果。</p></div>
+          <a className="button secondary" href="./guide.html">项目说明</a>
+          <a className="text-button" href="https://github.com/SophiMotion/AE" target="_blank" rel="noreferrer">项目源码</a>
+        </div>}
         {error && (
           <div className="error-banner" role="alert">
             <WarningCircle size={20} />
@@ -465,7 +484,7 @@ export default function App() {
         {loading ? (
           <div className="initial-loader">
             <CircleNotch size={30} className="spin" />
-            <p>正在连接本机工程服务</p>
+            <p>{isPublicDemo ? "正在读取公开示例与工作台" : "正在连接本机工程服务"}</p>
           </div>
         ) : page === "settings" ? (
           <Settings settings={settings} onSaved={setSettings} />
@@ -477,7 +496,7 @@ export default function App() {
               <div>
                 <h1>{project?.name || draft.name || "新建工程"}</h1>
                 <p>
-                  ROS 2 Humble <span>·</span> 本地模拟设备 <span>·</span>{" "}
+                  ROS 2 Humble <span>·</span> {isPublicDemo ? project?.latest_run_id ? "已有本机记录" : "浏览器需求草稿" : "本地模拟设备"} <span>·</span>{" "}
                   <span className={`status ${selectedStatus}`}>
                     {statusLabels[selectedStatus]}
                   </span>
@@ -487,7 +506,7 @@ export default function App() {
                 </p>
               </div>
               <div className="heading-actions">
-                {project && (
+                {project && !isPublicDemo && (
                   <button
                     className="button secondary"
                     onClick={() =>
@@ -500,6 +519,7 @@ export default function App() {
                     版本与复用
                   </button>
                 )}
+                {isPublicDemo && <button className="button secondary" onClick={() => downloadDraft(draft)}>下载 PRD 草稿</button>}
                 {!connected && (
                   <button
                     className="button secondary"
@@ -613,7 +633,7 @@ export default function App() {
                       <FileText size={24} />
                       <div>
                         <h2>程序生成</h2>
-                        <p>同一份需求和通信约定，生成两端工程。</p>
+                        <p>{isPublicDemo ? "查看两端工程如何配套；这一步的实际生成在本机完成。" : "同一份需求和通信约定，生成两端工程。"}</p>
                       </div>
                     </header>
                     <div className="generation-status">
@@ -625,9 +645,9 @@ export default function App() {
                       ) : (
                         <FileText size={38} />
                       )}
-                      <h3>{statusLabels[selectedStatus]}</h3>
+                      <h3>{isPublicDemo ? run ? "已有示例的两端程序" : "生成流程说明" : statusLabels[selectedStatus]}</h3>
                       <p>
-                        {project?.approval
+                        {isPublicDemo ? "完整平台在人工核对后，按冻结的需求与通信约定生成 ROS 工程和 ESP32 固件。当前网页不会启动生成、编译或仿真。" : project?.approval
                           ? "已确认的规格会随本轮工程保存，日志与文件在下方查看。"
                           : "先到“环境与检查”人工核对拆分结果。"}
                       </p>
@@ -727,12 +747,12 @@ export default function App() {
                       <Monitor size={19} />
                       运行环境
                     </dt>
-                    <dd>{connected ? "本机 ROS 2 Humble" : "等待连接"}</dd>
+                    <dd>{isPublicDemo ? "公开记录 / 浏览器体验" : connected ? "本机 ROS 2 Humble" : "等待连接"}</dd>
                   </div>
                 </dl>
                 <div className="notice">
                   <Info size={19} />
-                  <span>人工核对拆分结果后，才会生成和编译。</span>
+                  <span>{isPublicDemo ? "核对体验只改变浏览器草稿，不会生成、编译或刷新已有结果。" : "人工核对拆分结果后，才会生成和编译。"}</span>
                 </div>
                 <div className="info-detail">
                   <span>实物与控制板烧录</span>
@@ -753,7 +773,7 @@ export default function App() {
                         const selected = runs.find(
                           (r) => r.id === e.target.value,
                         );
-                        if (selected) {
+                        if (selected && (!isPublicDemo || selected.project_id === project?.id)) {
                           setRun(selected);
                           setStage(3);
                         }
@@ -778,7 +798,7 @@ export default function App() {
                 >
                   <GearSix size={16} />
                   AI：
-                  {settings?.provider === "codex" ? "本机 Codex" : "API 服务"}
+                  {isPublicDemo ? "分享版不调用" : settings?.provider === "codex" ? "本机 Codex" : "API 服务"}
                   <CaretRight size={14} />
                 </button>
               </aside>

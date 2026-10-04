@@ -5,7 +5,7 @@ import {
   Cube,
   UploadSimple,
 } from "@phosphor-icons/react";
-import { api, type Run, type Structure } from "./api";
+import { api, isPublicDemo, type Run, type Structure } from "./api";
 import { jointBounds, snapshotStructure } from "./modelView";
 const StructureView = lazy(() => import("./StructureView"));
 export default function StructurePanel({
@@ -119,7 +119,8 @@ export default function StructurePanel({
         </div>
         <button
           className="button secondary"
-          disabled={locked || uploading}
+          disabled={locked || uploading || isPublicDemo}
+          title={isPublicDemo ? "自定义结构导入在完整本机平台使用；此页可选择公开参考模型" : undefined}
           onClick={() => file.current?.click()}
         >
           {uploading ? (
@@ -127,7 +128,7 @@ export default function StructurePanel({
           ) : (
             <UploadSimple size={16} />
           )}
-          导入结构
+          {isPublicDemo ? "导入结构（本机功能）" : "导入结构"}
         </button>
         <input
           ref={file}

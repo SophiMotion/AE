@@ -8,7 +8,7 @@ import {
   Pause,
   Play,
 } from "@phosphor-icons/react";
-import type { Structure } from "./api";
+import { isPublicDemo, type Structure } from "./api";
 import { jointBounds } from "./modelView";
 
 interface SourceModel {
@@ -20,6 +20,37 @@ interface SourceModel {
     color?: number[];
   }[];
   metadata: { source?: string; sha256?: string; units?: string };
+}
+// The public build reuses the quantized display mesh, with every original triangle.
+// Local runtime JSON meshes keep their original loading path.
+const publicMeshCache = new Map<string, Promise<SourceModel>>();
+async function readMesh(url: string): Promise<SourceModel> {
+  let cached = publicMeshCache.get(url);
+  if (!cached) {
+    cached = (async () => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`结构模型读取失败（${response.status}）`);
+      const data = await response.json();
+      if (!Array.isArray(data.meshes) || !data.meshes.length) throw new Error("模型没有可显示的网格");
+      if (data.meshes[0].positionOffset === undefined) return data as SourceModel;
+      const binary = await fetch(new URL("./model.bin", new URL(url, window.location.href)));
+      if (!binary.ok) throw new Error(`模型几何读取失败（${binary.status}）`);
+      const buffer = await binary.arrayBuffer();
+      return {
+        metadata: { source: data.source, units: data.units || "mm" },
+        meshes: data.meshes.map((entry: {id: number; color: number[]; positionOffset: number; positionCount: number; positionMin: number[]; positionSpan: number[]; indexBits: number; indexOffset: number; indexCount: number}) => {
+          const packed = new Uint16Array(buffer, entry.positionOffset, entry.positionCount);
+          const indices = entry.indexBits === 16 ? new Uint16Array(buffer, entry.indexOffset, entry.indexCount) : new Uint32Array(buffer, entry.indexOffset, entry.indexCount);
+          return { id: entry.id, name: `part-${entry.id}`, color: entry.color,
+            positions: Array.from(packed, (value, index) => entry.positionMin[index % 3] + value / 65535 * entry.positionSpan[index % 3]),
+            indices: Array.from(indices) };
+        }),
+      };
+    })();
+    publicMeshCache.set(url, cached);
+    cached.catch(() => publicMeshCache.delete(url));
+  }
+  return cached;
 }
 type Point = { time: number; value: number; target: number; command: number };
 export default function StructureView({
@@ -72,13 +103,8 @@ export default function StructureView({
       return;
     }
     setLoading(true);
-    fetch(structure.mesh_url, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error(`结构模型读取失败（${response.status}）`);
-        const data = (await response.json()) as SourceModel;
-        if (!Array.isArray(data.meshes) || !data.meshes.length)
-          throw new Error("模型没有可显示的网格");
+    readMesh(structure.mesh_url)
+      .then((data) => {
         if (!controller.signal.aborted) setMesh(data);
       })
       .catch((e) => {
@@ -381,7 +407,7 @@ export default function StructureView({
             <>
               <CircleNotch className="spin" size={27} />
               <strong>正在读取原站结构</strong>
-              <p>首次需加载约 58 MB 网格。</p>
+              <p>{isPublicDemo ? "首次加载约 10 MB 显示模型；保留全部部件和三角面。" : "首次需加载约 58 MB 网格。"}</p>
             </>
           ) : (
             <>

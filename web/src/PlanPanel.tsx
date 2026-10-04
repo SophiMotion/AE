@@ -7,7 +7,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { type Project } from "./api";
+import { isPublicDemo, type Project } from "./api";
 import ModelIdentity from "./ModelIdentity";
 import ProjectManifest from "./ProjectManifest";
 import RequirementCoverage from "./RequirementCoverage";
@@ -38,7 +38,7 @@ export default function PlanPanel({
 }) {
   const [checked, setChecked] = useState(false);
   const plan = project?.plan;
-  const blocked = !!plan?.blocking_issues?.length;
+  const blocked = !isPublicDemo && !!plan?.blocking_issues?.length;
   const motionSource = project
     ? assistSource(
         fromProject(project),
@@ -55,7 +55,7 @@ export default function PlanPanel({
         <ClipboardText size={24} />
         <div>
           <h2>核对拆分结果</h2>
-          <p>确认两端分工和通信约定，再开始生成、编译。</p>
+          <p>{isPublicDemo ? "体验核对两端分工、通信约定和检查条件；实际生成在本机进行。" : "确认两端分工和通信约定，再开始生成、编译。"}</p>
         </div>
       </header>
       {dirty && project && (
@@ -127,9 +127,9 @@ export default function PlanPanel({
             >
               <WarningCircle size={21} />
               <div>
-                <p className="ai-label">AI 提出的阻止项 · 请结合实际规格核对</p>
+                <p className="ai-label">{isPublicDemo ? "分享范围说明 · 实际生成需要本机平台" : "AI 提出的阻止项 · 请结合实际规格核对"}</p>
                 <strong>先处理这些问题</strong>
-                <p>以下要求尚不能按当前方案完成，先修改需求，再重新拆分。</p>
+                <p>{isPublicDemo ? "以下是分享版的使用范围，补齐表单也不会新增在线执行服务。" : "以下要求尚不能按当前方案完成，先修改需求，再重新拆分。"}</p>
                 <ul>
                   {plan.blocking_issues!.map((issue, index) => (
                     <li key={index}>{issue}</li>
@@ -146,8 +146,8 @@ export default function PlanPanel({
             </div>
           )}
           <div className="execution-contract">
-            <h3>这轮实际按什么执行</h3>
-            <p>以下参数直接来自执行程序，请与需求一起核对。</p>
+            <h3>{isPublicDemo ? "这份规格说明什么" : "这轮实际按什么执行"}</h3>
+            <p>{isPublicDemo ? project?.latest_run_id ? "以下是已有本机验收示例的冻结规格，修改草稿不会改变历史结果。" : "以下来自当前浏览器草稿，尚未生成或运行验证。" : "以下参数直接来自执行程序，请与需求一起核对。"}</p>
             {project && <ModelIdentity spec={project} />}
             {project?.prd?.intake?.motion_plan && (
               <MotionPlanEditor
@@ -302,7 +302,7 @@ export default function PlanPanel({
           </div>
           <div className="ai-content">
             <div className="ai-label">
-              AI 生成 · {plan.provenance?.tool || "已记录工具"}
+              {isPublicDemo ? "公开示例 / 浏览器摘要 · " : "AI 生成 · "}{plan.provenance?.tool || "已记录工具"}
               {plan.provenance?.model ? ` / ${plan.provenance.model}` : ""}
             </div>
             <p className="plan-summary">{plan.summary}</p>
@@ -313,8 +313,7 @@ export default function PlanPanel({
           )}
           <div className="ai-content ai-plan-fields">
             <p className="ai-label">
-              以下分工、通信建议、检查建议和缺失项均由 AI 生成 ·
-              完整工具与提示词见下方“AI 记录”
+              {isPublicDemo ? "以下是公开示例说明或浏览器规则摘要，不是新的 AI 拆分或执行结果。" : "以下分工、通信建议、检查建议和缺失项均由 AI 生成 · 完整工具与提示词见下方“AI 记录”"}
             </p>
             <div className="plan-columns">
               <PlanList title="ROS 端" items={plan.ros_tasks} />
@@ -385,7 +384,7 @@ export default function PlanPanel({
                 ) : (
                   <Play size={17} />
                 )}
-                确认，生成并检查
+                {isPublicDemo ? "我已阅读，查看生成流程" : "确认，生成并检查"}
               </button>
             </div>
           ) : (
@@ -404,7 +403,7 @@ export default function PlanPanel({
                   }
                   onClick={onApprove}
                 >
-                  生成并检查
+                  {isPublicDemo ? "查看生成流程" : "生成并检查"}
                 </button>
               )}
             </div>
@@ -412,7 +411,7 @@ export default function PlanPanel({
         </>
       )}
       <details className="source-details">
-        <summary>本机环境信息</summary>
+        <summary>{isPublicDemo ? "示例验证环境 / 分享范围" : "本机环境信息"}</summary>
         <pre>
           {environment
             ? JSON.stringify(environment, null, 2)

@@ -9,7 +9,8 @@ import {
   Terminal,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { api, localTime, printable, type Plan, type Run } from "./api";
+import { api, isPublicDemo, localTime, printable, type Plan, type Run } from "./api";
+import { recordDownloadUrl } from "./demoDownload";
 import ChecksView from "./ChecksView";
 import ModelIdentity from "./ModelIdentity";
 import { lineDiff } from "./codeDiff";
@@ -19,7 +20,7 @@ const tabs = [
   { id: "files" as Tab, label: "生成文件", icon: FileCode },
   { id: "code" as Tab, label: "两端代码", icon: BracketsCurly },
   { id: "checks" as Tab, label: "检查结果", icon: CheckCircle },
-  { id: "ai" as Tab, label: "AI 记录", icon: ListBullets },
+  { id: "ai" as Tab, label: isPublicDemo ? "生成与工具记录" : "AI 记录", icon: ListBullets },
 ];
 export default function Evidence({
   run,
@@ -87,9 +88,10 @@ export default function Evidence({
         {run && (
           <a
             className="icon-button export-action"
-            title="下载完整工程"
-            aria-label="下载完整工程"
-            href={`/api/runs/${run.id}/export`}
+            title={isPublicDemo ? "下载公开示例记录" : "下载完整工程"}
+            aria-label={isPublicDemo ? "下载公开示例记录" : "下载完整工程"}
+            href={recordDownloadUrl(run)}
+            download={isPublicDemo ? "AE-公开示例记录.json" : undefined}
           >
             <DownloadSimple size={18} />
           </a>
@@ -118,8 +120,8 @@ export default function Evidence({
         ) : (
           <Empty
             icon="log"
-            text="生成和运行后，这里会保留真实记录。"
-            detail="编译输出、启动过程和报错都可以在这里查看。"
+            text={isPublicDemo ? "本机原始运行日志未公开" : "生成和运行后，这里会保留真实记录。"}
+            detail={isPublicDemo ? "可在“检查结果”“生成文件”查看公开证据；本页面不会伪造运行过程。" : "编译输出、启动过程和报错都可以在这里查看。"}
           />
         ))}
       {tab === "files" &&
@@ -200,12 +202,12 @@ export default function Evidence({
               >
                 <summary>
                   <span>
-                    AI 生成 · {record.tool || "工具已记录"} {record.model || ""}
+                    {isPublicDemo ? "工具说明 · " : "AI 生成 · "}{record.tool || "工具已记录"} {record.model || ""}
                   </span>
                   <time>{localTime(record.started_at)}</time>
                 </summary>
-                <label>使用的提示词</label>
-                <pre>{record.prompt || "本轮未提供提示词记录"}</pre>
+                <label>{isPublicDemo ? "整理方式 / 使用的提示词" : "使用的提示词"}</label>
+                <pre>{record.prompt || (isPublicDemo ? "该公开示例采用固定模板生成，此分享页面不进行新的 AI 调用。" : "本轮未提供提示词记录")}</pre>
                 {record.response !== undefined && (
                   <>
                     <label>原始回答</label>
@@ -341,7 +343,7 @@ function GeneratedCode({ run }: { run: Run | null }) {
         </label>
       </div>
       <p className="ai-label">
-        AI 生成 · {side === "ros" ? "algorithm.py" : "device_logic.cpp"} ·
+        {isPublicDemo ? "已有模板生成源码 · " : "AI 生成 · "}{side === "ros" ? "algorithm.py" : "device_logic.cpp"} ·
         编译与执行结果另行查看
       </p>
       {rejected && (

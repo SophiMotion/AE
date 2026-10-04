@@ -6,7 +6,7 @@ import {
   Key,
   Terminal,
 } from "@phosphor-icons/react";
-import { api, type Settings as SettingsData } from "./api";
+import { api, isPublicDemo, type Settings as SettingsData } from "./api";
 export default function Settings({
   settings,
   onSaved,
@@ -49,6 +49,16 @@ export default function Settings({
       setBusy(false);
     }
   };
+  if (isPublicDemo) return <div className="settings-page">
+    <header className="page-heading"><div><h1>AI 服务与使用范围</h1><p>完整平台支持切换服务；分享版展示配置方法。</p></div><GearSix size={28} /></header>
+    <section className="panel settings-panel">
+      <h2>本机 Codex / 兼容 OpenAI 的 API 服务</h2>
+      <p>在完整本机平台中选择服务、填写模型，再由后台调用。这里不连接你的电脑，也不接收或保存 API 密钥。</p>
+      <div className="notice"><div><strong>此分享版可以做什么</strong><p>体验 PRD、保存浏览器草稿、查看分工与通信说明、回放已有模型轨迹、浏览公开资料和源码。</p></div></div>
+      <div className="notice"><div><strong>实际生成、编译和运行</strong><p>下载仓库源码，按 README 在本机部署 Python 后台、ROS 和编译环境，完成填写、人工核对和验收。</p></div></div>
+      <a className="button primary" href="https://github.com/SophiMotion/AE#readme" target="_blank" rel="noreferrer">查看本机部署说明</a>
+    </section>
+  </div>;
   return (
     <div className="settings-page">
       <header className="page-heading">
