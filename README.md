@@ -5,7 +5,7 @@ AE · Auto Engineering
 在线体验
 - [工作台体验版（现有公开地址）](https://ae-sophicore-demo.sophicargo.chatgpt.site)
 - [项目说明页（现有公开地址）](https://auto-engineering-guide.sophicargo.chatgpt.site)
-- GitHub Pages 发布后，工作台地址为 `https://bobwu0214.github.io/AE/`，说明页地址为 `https://bobwu0214.github.io/AE/guide.html`。这里列的是预期地址，需完成 Pages 设置并部署成功。
+- GitHub Pages 发布后，工作台地址为 https://bobwu0214.github.io/AE/，说明页地址为 `https://bobwu0214.github.io/AE/guide.html`。这里列的是预期地址，需完成 Pages 设置并部署成功。
 在线版可以体验需求填写、旋转机器人模型、回放已有动作记录和查看验收结果。它不会调用本机 AI，也不会新生成工程或运行 ROS。完整流程暂未展示，完整流程因为涉及调用本机AI以及ROS环境所以暂时未展示。
  操作流程
   text
