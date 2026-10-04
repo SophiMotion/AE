@@ -1,0 +1,341 @@
+{
+  "notice": "人工编写的检索验收题，不是模型回答准确率或实物验收。期望为前5条中找到任一指定来源；负例检查没有乱补资料或错版本。",
+  "cases": [
+    {
+      "id": "uart-cn",
+      "query": "ESP32 串口如何收发数据",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "esp32-uart",
+        "esp-idf-uart-original",
+        "esp-idf-uart-echo-original"
+      ]
+    },
+    {
+      "id": "uart-api",
+      "query": "uart_read_bytes uart_write_bytes",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "esp-idf-uart-original",
+        "esp-idf-uart-echo-original"
+      ]
+    },
+    {
+      "id": "publisher",
+      "query": "rclpy create_publisher create_subscription",
+      "task_type": "joint_position",
+      "expected_ids": [
+        "ros-humble-pubsub-original",
+        "ros-humble-pubsub"
+      ]
+    },
+    {
+      "id": "python-package",
+      "query": "setup.py entry_points console_scripts",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "ros-humble-pubsub-original"
+      ]
+    },
+    {
+      "id": "qos",
+      "query": "QoS reliable best effort incompatible",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "ros-humble-qos-original",
+        "ros-humble-qos"
+      ]
+    },
+    {
+      "id": "qos-cn",
+      "query": "消息可靠性与订阅匹配",
+      "task_type": "joint_position",
+      "expected_ids": [
+        "ros-humble-qos-original",
+        "ros-humble-qos"
+      ]
+    },
+    {
+      "id": "build",
+      "query": "colcon 编译失败 构建日志",
+      "task_type": "joint_position",
+      "expected_ids": [
+        "colcon-build"
+      ]
+    },
+    {
+      "id": "gazebo-version",
+      "query": "Humble Gazebo Fortress 版本搭配",
+      "task_type": "joint_position",
+      "expected_ids": [
+        "gazebo-ros-pairing"
+      ]
+    },
+    {
+      "id": "launch-test",
+      "query": "launch_testing 退出码 回归测试",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "ros-launch-testing"
+      ]
+    },
+    {
+      "id": "watchdog",
+      "query": "ESP32 任务看门狗与指令失联",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "esp32-watchdog"
+      ]
+    },
+    {
+      "id": "protocol",
+      "query": "state_frequency_hz watchdog_seconds",
+      "task_type": "joint_position",
+      "expected_ids": [
+        "project-contract-original"
+      ]
+    },
+    {
+      "id": "threshold",
+      "query": "sensor_threshold compute_command 阈值",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "project-contract-v1",
+        "project-contract-original"
+      ]
+    },
+    {
+      "id": "board-specific-does-not-hide-general",
+      "query": "uart_read_bytes",
+      "task_type": "sensor_threshold",
+      "board": "esp32s3",
+      "expected_ids": [
+        "esp-idf-uart-original",
+        "esp-idf-uart-echo-original"
+      ]
+    },
+    {
+      "id": "nvidia-correct-version",
+      "query": "NVIDIA rosidl Buffer CUDA",
+      "task_type": "joint_position",
+      "ros_distro": "lyrical",
+      "expected_ids": [
+        "nvidia-agent-method"
+      ]
+    },
+    {
+      "id": "nvidia-not-humble",
+      "query": "NVIDIA rosidl Buffer CUDA",
+      "task_type": "joint_position",
+      "ros_distro": "humble",
+      "excluded_ids": [
+        "nvidia-agent-method"
+      ]
+    },
+    {
+      "id": "unknown-topic",
+      "query": "三角梅花期 ZQXK_987654",
+      "task_type": "joint_position",
+      "expect_empty": true
+    },
+    {
+      "id": "unknown-task",
+      "query": "UART",
+      "task_type": "unimplemented_robot",
+      "expect_empty": true
+    },
+    {
+      "id": "empty-query",
+      "query": "",
+      "task_type": "joint_position",
+      "expect_empty": true
+    },
+    {
+      "id": "arduino-serial-version",
+      "query": "Arduino ESP32 3.3.12 HardwareSerial begin read write",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "arduino-esp32-serial-original"
+      ]
+    },
+    {
+      "id": "arduinojson-serialize",
+      "query": "ArduinoJson serializeJson JsonDocument Serial",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "arduinojson-generator-original",
+        "arduinojson-readme-original"
+      ]
+    },
+    {
+      "id": "arduinojson-parse",
+      "query": "deserializeJson DeserializationError",
+      "task_type": "sensor_threshold",
+      "expected_ids": [
+        "arduinojson-parser-original",
+        "arduinojson-readme-original"
+      ]
+    },
+    {
+      "id": "v3-sophicore-left-elbow",
+      "query": "Sophicore 左肘 arm_l_elbow_bend 对应哪些网格",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "sophicore-kinematics-v3",
+        "sophicore-limbs-original"
+      ],
+      "robot_model": "sophicore_506",
+      "source_model_sha256": "a8435cbd1f3598f699c9bc4f95bd08b898c1e92c5d29baf5d6665e07fb7ed3de"
+    },
+    {
+      "id": "v3-sophicore-clamp-limit",
+      "query": "Sophicore 夹爪 clamp 角度范围 45 度",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "sophicore-frame-limits-v3",
+        "sophicore-arms-original"
+      ],
+      "robot_model": "sophicore_506",
+      "source_model_sha256": "a8435cbd1f3598f699c9bc4f95bd08b898c1e92c5d29baf5d6665e07fb7ed3de"
+    },
+    {
+      "id": "v3-sophicore-right-axis",
+      "query": "Sophicore 右臂负轴 30 mm 不对称",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "sophicore-frame-limits-v3",
+        "sophicore-limbs-original"
+      ],
+      "robot_model": "sophicore_506",
+      "source_model_sha256": "a8435cbd1f3598f699c9bc4f95bd08b898c1e92c5d29baf5d6665e07fb7ed3de"
+    },
+    {
+      "id": "v3-sophicore-head",
+      "query": "headPivots headMatrix tilt 头部俯仰",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "sophicore-head-original"
+      ],
+      "robot_model": "sophicore_506",
+      "source_model_sha256": "a8435cbd1f3598f699c9bc4f95bd08b898c1e92c5d29baf5d6665e07fb7ed3de"
+    },
+    {
+      "id": "v3-sophicore-mesh-origin",
+      "query": "Sophicore mesh_origin_m 原网格毫米转父部件坐标",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "sophicore-frame-limits-v3"
+      ],
+      "robot_model": "sophicore_506",
+      "source_model_sha256": "a8435cbd1f3598f699c9bc4f95bd08b898c1e92c5d29baf5d6665e07fb7ed3de"
+    },
+    {
+      "id": "v3-model-pose-offset",
+      "query": "initial_position joint_position_offset 源姿态绝对角度",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "ae-model-snapshot-v3"
+      ]
+    },
+    {
+      "id": "v3-model-held-pose",
+      "query": "selected_joint held_positions 其他关节保持保存姿态",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "ae-model-snapshot-v3"
+      ]
+    },
+    {
+      "id": "v3-model-inertia-scope",
+      "query": "1 kg 质量惯量数值占位不是实际负载",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "ae-simulation-scope-v3"
+      ]
+    },
+    {
+      "id": "v3-approval-version",
+      "query": "人工核对 spec_revision plan_id blocking_issues 后编译",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "ae-approval-workflow-v3"
+      ]
+    },
+    {
+      "id": "v3-serial-model-identity",
+      "query": "joint_name model_sha256 protocol_sha256 同关节通信",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "ae-serial-binding-v3",
+        "project-contract-original"
+      ]
+    },
+    {
+      "id": "v3-measurement-source",
+      "query": "measurement 是 Gazebo 关节绝对角不是编码器",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "ae-serial-binding-v3"
+      ]
+    },
+    {
+      "id": "v3-esp32-build",
+      "query": "FQBN Arduino model_binding.hpp 板型编译",
+      "task_type": "joint_position",
+      "board": "esp32",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "ae-esp32-build-v3"
+      ],
+      "excluded_ids": [
+        "ae-esp32s3-build-v3"
+      ]
+    },
+    {
+      "id": "v3-esp32s3-build",
+      "query": "FQBN Arduino model_binding.hpp 板型编译",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "humble",
+      "expected_ids": [
+        "ae-esp32s3-build-v3"
+      ],
+      "excluded_ids": [
+        "ae-esp32-build-v3"
+      ]
+    },
+    {
+      "id": "v3-humble-contract-not-jazzy",
+      "query": "joint_name protocol_sha256 同关节通信",
+      "task_type": "joint_position",
+      "board": "esp32s3",
+      "ros_distro": "jazzy",
+      "excluded_ids": [
+        "ae-serial-binding-v3",
+        "project-contract-original"
+      ]
+    }
+  ]
+}
