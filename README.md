@@ -5,7 +5,7 @@
  在线体验
 - [GitHub Pages 完整工作台体验版](https://sophimotion.github.io/AE/)，
 - [项目说明页](https://sophimotion.github.io/AE/guide.html)。仓库 main 分支的 docs 目录为发布来源。
-分享版复用完整工作台界面，支持五步 PRD、流程图、参考动作编辑、公开资料筛选和已有本机验收记录。新草稿只保存在当前浏览器；不会套用已有结果，也不会在线生成、编译或运行 ROS。
+分享版复用完整工作台界面，支持五步 PRD、流程图、参考动作编辑、公开资料筛选和已有本机验收记录。因为环境未部署原因所以GitHub分享版不会在线生成、编译或运行 ROS。
  操作流程
 
 text
