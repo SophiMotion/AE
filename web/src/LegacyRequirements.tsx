@@ -22,6 +22,7 @@ import WorkflowEditor from "./WorkflowEditor";
 import { validateWorkflow } from "./workflowModel";
 import { jointBounds } from "./modelView";
 import ProjectManifest from "./ProjectManifest";
+import RequestInput from "./RequestInput";
 export default function Requirements({
   draft,
   setDraft,
@@ -33,6 +34,8 @@ export default function Requirements({
   onPlan,
   manifest,
   manifestStale,
+  speechOverflow,
+  onSpeechOverflowChange,
 }: {
   draft: Draft;
   setDraft: (v: Draft) => void;
@@ -44,6 +47,8 @@ export default function Requirements({
   onPlan: () => void;
   manifest?: EngineeringManifest | null;
   manifestStale?: boolean;
+  speechOverflow: string;
+  onSpeechOverflowChange: (text: string) => void;
 }) {
   useI18n();
   const [uploadingStructure, setUploadingStructure] = useState(false);
@@ -304,19 +309,15 @@ export default function Requirements({
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           />
         </label>
-        <label className="field request-field">
-          <span>{t("你希望机器人做什么")}</span>
-          <textarea
-            rows={3}
-            aria-label={t("你希望机器人做什么")}
-            maxLength={4000}
-            disabled={locked}
-            value={draft.request}
-            onChange={(e) => setDraft({ ...draft, request: e.target.value })}
-            placeholder={t("描述动作、触发条件，以及怎样算成功")}
-          />
-          <small className="char-count">{draft.request.length} / 4000</small>
-        </label>
+        <RequestInput
+          overflow={speechOverflow}
+          onOverflowChange={onSpeechOverflowChange}
+          rows={3}
+          disabled={locked || saving}
+          value={draft.request}
+          onChange={(request) => setDraft({ ...draft, request })}
+          placeholder={t("描述动作、触发条件，以及怎样算成功")}
+        />
         <div className="parameter-grid">
           {isJoint ? (
             <NumberField

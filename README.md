@@ -11,6 +11,10 @@
 
 Use **中文 / English** in the top-right corner to switch the workbench interface. The preference is saved in your browser. Switching preserves your draft and workflow position; original requirements, project names, source material, generated code and logs remain unchanged.
 
+需求输入框旁的 **语音输入 / Voice input** 支持浏览器语音转文字，可选择普通话或英语。允许麦克风后开始说话，再次点击即可停止；识别文字追加到现有需求，检查修改后再手动使用智能填写或保存。每次最多 2 分钟，输入上限 4000 字；超限文字会单独保留供复制。本机与分享版共用此入口。
+
+语音识别依赖浏览器及其识别服务，部分浏览器可能联网处理语音，本项目不保存音频。网页应通过 HTTPS 或 localhost 访问；微信内置浏览器或其他不支持的浏览器会显示替代操作提示，可使用系统输入法的麦克风。英文转写不会改变分享版原有的规则推荐范围。[Web Speech API 说明](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)。
+
  操作流程
 
 text

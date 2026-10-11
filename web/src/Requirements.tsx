@@ -8,6 +8,7 @@ import {
 } from "./i18nRequirements";
 import GuideNumber from "./GuideNumber";
 import GuideOptions from "./GuideOptions";
+import RequestInput from "./RequestInput";
 import { blankNumberRecommendations, numberChoices } from "./intakeChoices";
 import {
   issueDestination,
@@ -132,6 +133,8 @@ function IntakeGuide({
   onPlan,
   manifest,
   manifestStale,
+  speechOverflow,
+  onSpeechOverflowChange,
 }: Props) {
   const { locale } = useI18n();
   const intake = draft.prd.intake!;
@@ -933,30 +936,21 @@ function IntakeGuide({
                 )}
               </small>
             </div>
-            <label className="field request-field">
-              <span>
-                {t("你希望机器人做什么")}
-                <small>{t("保留你的原话")}</small>
-              </span>
-              <textarea
-                aria-label={t("你希望机器人做什么")}
-                rows={4}
-                maxLength={4000}
-                value={draft.request}
-                disabled={locked}
-                onChange={(e) =>
-                  setDraft({ ...draft, request: e.target.value })
-                }
-                placeholder={t(
-                  "例如：让机器人抬起右手，来回招手三次，最后放回原位。",
-                )}
-              />
-              <small>
-                {t(
-                  "先描述意图。后面再选部位、填动作细节；AI 不会仅凭一句话猜接线。",
-                )}
-              </small>
-            </label>
+            <RequestInput
+              overflow={speechOverflow}
+              onOverflowChange={onSpeechOverflowChange}
+              note={t("保留你的原话")}
+              rows={4}
+              value={draft.request}
+              disabled={locked}
+              onChange={(request) => setDraft({ ...draft, request })}
+              placeholder={t(
+                "例如：让机器人抬起右手，来回招手三次，最后放回原位。",
+              )}
+              hint={t(
+                "先描述意图。后面再选部位、填动作细节；AI 不会仅凭一句话猜接线。",
+              )}
+            />
             <div className="field">
               <span data-intake-path="prd.intake.intent" tabIndex={-1}>
                 {t("它更接近哪类动作？")}

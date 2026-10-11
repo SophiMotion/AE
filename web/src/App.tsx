@@ -59,6 +59,11 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [draft, setDraft] = useState<Draft>(newDraft);
+  // Uninserted dictation stays with its project across wizard steps and saves.
+  // It is never included in API payloads, exported PRDs or execution inputs.
+  const [speechRemainders, setSpeechRemainders] = useState<
+    Record<string, string>
+  >({});
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [environment, setEnvironment] = useState<Record<
     string,
@@ -84,6 +89,7 @@ export default function App() {
     null,
   );
   const selectionVersion = useRef(0);
+  const speechScope = project?.id ?? `draft-${selectionVersion.current}`;
   const refreshVersion = useRef(0);
   const locked = !!project && busyStatuses.includes(project.status);
   const dirty = draftIsChanged(draft, project);
@@ -286,6 +292,12 @@ export default function App() {
       draft,
       project ? "PUT" : "POST",
     );
+    setSpeechRemainders((current) => {
+      if (!current[speechScope] || speechScope === next.id) return current;
+      const moved = { ...current, [next.id]: current[speechScope] };
+      delete moved[speechScope];
+      return moved;
+    });
     updateProject(next);
     setRun(null);
     if (isPublicDemo) setRuns([]);
@@ -754,6 +766,15 @@ export default function App() {
                 {stage === 0 ? (
                   <Requirements
                     key={selectionVersion.current}
+                    speechOverflow={speechRemainders[speechScope] || ""}
+                    onSpeechOverflowChange={(text) =>
+                      setSpeechRemainders((current) => {
+                        const next = { ...current };
+                        if (text) next[speechScope] = text;
+                        else delete next[speechScope];
+                        return next;
+                      })
+                    }
                     draft={draft}
                     manifest={project?.manifest}
                     manifestStale={dirty}
