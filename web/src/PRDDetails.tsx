@@ -1,3 +1,5 @@
+import { useI18n } from "./i18n";
+import { detailSummaryText } from "./i18nMotionDetails";
 import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash } from "@phosphor-icons/react";
 import type {
@@ -103,6 +105,7 @@ function groupOptions(
   group: DetailGroupKey,
   intent: PRDIntake["intent"],
   completeAction: boolean,
+  t: (source: string) => string,
 ): GroupOption[] {
   const threshold = intent === "threshold";
   const platformDescriptions: Record<DetailGroupKey, string> = {
@@ -142,18 +145,18 @@ function groupOptions(
   return [
     {
       value: "platform",
-      label: "采用当前本机设置",
+      label: t("采用当前本机设置"),
       description:
-        platformDescriptions[group] +
+        t(platformDescriptions[group]) +
         (needsActionRules
-          ? " 这些规则只覆盖现有单项测试，还不能说明整套动作的结果。"
+          ? t(" 这些规则只覆盖现有单项测试，还不能说明整套动作的结果。")
           : ""),
       recommended: !needsActionRules,
     },
     {
       value: "custom",
-      label: "我要补充要求",
-      description: extraDescriptions[group],
+      label: t("我要补充要求"),
+      description: t(extraDescriptions[group]),
       recommended: needsActionRules,
     },
   ];
@@ -172,13 +175,16 @@ export function PlatformDetailsAction({
   onChange: (next: IntakeDetails) => void;
   v5Motion?: boolean;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   return (
     <div className="guide-suggestions details-adopt">
       <div>
-        <strong>本轮只按平台现有方式在电脑里测试？</strong>
+        <strong>{t("本轮只按平台现有方式在电脑里测试？")}</strong>
         <p>
-          可以一次确认下列设置。只补没有额外内容的空白组，不改已写要求，不确认任何实物接线。
+          {t(
+            "可以一次确认下列设置。只补没有额外内容的空白组，不改已写要求，不确认任何实物接线。",
+          )}
         </p>
         <button
           type="button"
@@ -186,15 +192,15 @@ export function PlatformDetailsAction({
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
-          查看将采用的具体设置
+          {t("查看将采用的具体设置")}
         </button>
         {open && (
           <ul className="details-platform-list">
             {Object.entries(factsForIntent(intent, v5Motion)).map(
               ([group, text]) => (
                 <li key={group}>
-                  <strong>{detailLabels[group as DetailGroupKey]}：</strong>
-                  {text}
+                  <strong>{t(detailLabels[group as DetailGroupKey])}：</strong>
+                  {t(text)}
                 </li>
               ),
             )}
@@ -207,7 +213,7 @@ export function PlatformDetailsAction({
         disabled={disabled}
         onClick={() => onChange(adoptPlatformDetails(details))}
       >
-        采用当前本机测试设置
+        {t("采用当前本机测试设置")}
       </button>
     </div>
   );
@@ -228,18 +234,19 @@ function TextField({
   placeholder?: string;
   short?: boolean;
 }) {
+  const { t } = useI18n();
   const props = {
-    "aria-label": label,
+    "aria-label": t(label),
     value,
     disabled,
     maxLength: 2000,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onChange(e.target.value),
-    placeholder: placeholder || "不知道可以先留空",
+    placeholder: t(placeholder || "不知道可以先留空"),
   };
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>{t(label)}</span>
       {short ? <input {...props} /> : <textarea rows={2} {...props} />}
     </label>
   );
@@ -250,26 +257,29 @@ function Choice({
   options,
   onChange,
   disabled,
+  translateOptions = true,
 }: {
   label: string;
   value: string | null;
   options: [string, string][];
   onChange: (value: string | null) => void;
   disabled: boolean;
+  translateOptions?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>{t(label)}</span>
       <select
-        aria-label={label}
+        aria-label={t(label)}
         value={value || ""}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value || null)}
       >
-        <option value="">还没确认</option>
+        <option value="">{t("还没确认")}</option>
         {options.map(([key, text]) => (
           <option value={key} key={key}>
-            {text}
+            {translateOptions ? t(text) : text}
           </option>
         ))}
       </select>
@@ -299,29 +309,33 @@ function Group({
   disabled: boolean;
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   const [clearing, setClearing] = useState(false);
   return (
     <section
       className="prd-detail-group"
-      aria-label={detailLabels[group]}
+      aria-label={t(detailLabels[group])}
       data-intake-path={`prd.intake.details.${group}`}
       tabIndex={-1}
     >
       <div className="detail-group-heading">
-        <h4>{detailLabels[group]}</h4>
-        <span className="origin-tag">需求记录</span>
+        <h4>{t(detailLabels[group])}</h4>
+        <span className="origin-tag">{t("需求记录")}</span>
       </div>
-      <p className="guide-intro">{description}</p>
+      <p className="guide-intro">{t(description)}</p>
       <details className="detail-platform-fact">
-        <summary>平台当前怎么做 · 已知设置</summary>
-        <p>{fact}</p>
+        <summary>{t("平台当前怎么做 · 已知设置")}</summary>
+        <p>{t(fact)}</p>
         <small>
-          来源：平台通信约定、模型和现有检查规则；不是实物验证结果。
+          {t("来源：平台通信约定、模型和现有检查规则；不是实物验证结果。")}
         </small>
       </details>
       {onSelection && (
         <GuideOptions
-          label={`${detailLabels[group]}的要求`}
+          label={t(
+            `${detailLabels[group]}的要求`,
+            `${t(detailLabels[group])} requirements`,
+          )}
           value={selection ?? null}
           options={options || []}
           disabled={disabled}
@@ -330,7 +344,9 @@ function Group({
       )}
       {(selection === "custom" || extras) && onSelection && (
         <p className="detail-scope-note">
-          额外要求会保存，但当前执行器还不支持。改回“本机设置”也不会忽略下面的内容。
+          {t(
+            "额外要求会保存，但当前执行器还不支持。改回“本机设置”也不会忽略下面的内容。",
+          )}
         </p>
       )}
       {children}
@@ -343,11 +359,16 @@ function Group({
               className="text-button"
               onClick={() => setClearing(true)}
             >
-              清空本组补充并采用本机设置
+              {t("清空本组补充并采用本机设置")}
             </button>
           ) : (
             <>
-              <span>会删除“{detailLabels[group]}”里的补充内容。</span>
+              <span>
+                {t(
+                  `会删除“${detailLabels[group]}”里的补充内容。`,
+                  `Delete the additional content in “${t(detailLabels[group])}”.`,
+                )}
+              </span>
               <button
                 type="button"
                 className="button secondary"
@@ -357,7 +378,7 @@ function Group({
                   setClearing(false);
                 }}
               >
-                确认清空本组
+                {t("确认清空本组")}
               </button>
               <button
                 className="text-button"
@@ -365,7 +386,7 @@ function Group({
                 type="button"
                 onClick={() => setClearing(false)}
               >
-                保留内容
+                {t("保留内容")}
               </button>
             </>
           )}
@@ -389,13 +410,14 @@ function RowsActions({
   disabled: boolean;
   label: string;
 }) {
+  const { t } = useI18n();
   return (
     <div className="detail-row-actions">
       <button
         type="button"
         className="button secondary"
         disabled={disabled || index === 0}
-        aria-label={`上移${label}`}
+        aria-label={t(`上移${label}`, `Move ${label} up`)}
         onClick={() => onMove(-1)}
       >
         <ArrowUp size={17} />
@@ -404,7 +426,7 @@ function RowsActions({
         type="button"
         className="button secondary"
         disabled={disabled || index === total - 1}
-        aria-label={`下移${label}`}
+        aria-label={t(`下移${label}`, `Move ${label} down`)}
         onClick={() => onMove(1)}
       >
         <ArrowDown size={17} />
@@ -413,7 +435,7 @@ function RowsActions({
         type="button"
         className="button secondary"
         disabled={disabled}
-        aria-label={`删除${label}`}
+        aria-label={t(`删除${label}`, `Delete ${label}`)}
         onClick={onRemove}
       >
         <Trash size={17} />
@@ -434,16 +456,26 @@ function JointChoice({
   disabled: boolean;
   onChange: (value: string | null) => void;
 }) {
+  const { t } = useI18n();
   const joints = structure?.joints.filter((j) => j.type !== "fixed") || [];
   return (
     <Choice
       label={label}
+      translateOptions={false}
       value={value}
       disabled={disabled}
       onChange={onChange}
       options={[
         ...(value && !joints.some((j) => j.name === value)
-          ? [[value, `${value}（不在当前结构中，待重选）`] as [string, string]]
+          ? [
+              [
+                value,
+                t(
+                  `${value}（不在当前结构中，待重选）`,
+                  `${value} (not in this structure; select again)`,
+                ),
+              ] as [string, string],
+            ]
           : []),
         ...joints.map(
           (j) =>
@@ -469,6 +501,7 @@ export default function PRDDetails({
   v5Motion = false,
   onChange,
 }: Props) {
+  const { t } = useI18n();
   const currentStructure =
     structure?.id === answers.structure_id ? structure : null;
   const mappingHash =
@@ -490,12 +523,12 @@ export default function PRDDetails({
     ...groupProps(group),
     selection: details[group].selection,
     options: v5Motion
-      ? groupOptions(group, intent, false).map((option) =>
+      ? groupOptions(group, intent, false, t).map((option) =>
           option.value === "platform"
-            ? { ...option, description: factsForIntent(intent, true)[group] }
+            ? { ...option, description: t(factsForIntent(intent, true)[group]) }
             : option,
         )
-      : groupOptions(group, intent, completeAction),
+      : groupOptions(group, intent, completeAction, t),
     onSelection: (selection: DetailSelection) => update(group, { selection }),
   });
   const shown = (group: Exclude<DetailGroupKey, "motion" | "device_mapping">) =>
@@ -509,10 +542,10 @@ export default function PRDDetails({
     angle = false,
   ) => (
     <GuideNumber
-      label={label}
+      label={t(label)}
       value={value}
       unit={angle ? angleUnit : "number"}
-      suffix={angle ? (angleUnit === "deg" ? "°" : "rad") : suffix}
+      suffix={angle ? (angleUnit === "deg" ? "°" : "rad") : t(suffix)}
       disabled={disabled}
       onChange={onValue}
       suggested={false}
@@ -525,33 +558,37 @@ export default function PRDDetails({
           {(!completeAction || hasDetailExtras("motion", details.motion)) && (
             <Group
               {...groupProps("motion")}
-              description="是只做上面这个动作，还是还要先后、同时做别的事？"
+              description={t(
+                "是只做上面这个动作，还是还要先后、同时做别的事？",
+              )}
             >
               <GuideOptions
-                label="动作怎样安排"
+                label={t("动作怎样安排")}
                 value={details.motion.pattern}
                 disabled={disabled}
                 options={[
                   {
                     value: "from_answers",
-                    label: "只做上面这个任务",
+                    label: t("只做上面这个任务"),
                     description:
                       intent === "threshold"
-                        ? "按模拟值是否达到阈值来开关，不另外添加动作。"
-                        : "使用上面填写的动作参数，不另外添加步骤。",
+                        ? t("按模拟值是否达到阈值来开关，不另外添加动作。")
+                        : t("使用上面填写的动作参数，不另外添加步骤。"),
                     recommended: !completeAction,
                   },
                   {
                     value: "sequence",
-                    label: "按顺序做几步",
-                    description:
+                    label: t("按顺序做几步"),
+                    description: t(
                       "比如先抬手、再招手、最后放下。完整保留这些要求，先作为草稿核对。",
+                    ),
                   },
                   {
                     value: "parallel",
-                    label: "有些动作同时做",
-                    description:
+                    label: t("有些动作同时做"),
+                    description: t(
                       "比如一边抬手一边转头；需要写清哪些步骤一起开始、怎样结束。",
+                    ),
                   },
                 ]}
                 onChange={(pattern) =>
@@ -561,21 +598,24 @@ export default function PRDDetails({
                 }
               />
               <GuideOptions
-                label="什么时候算这组动作完成"
+                label={t("什么时候算这组动作完成")}
                 value={details.motion.completion}
                 disabled={disabled}
                 options={[
                   {
                     value: "all",
-                    label: "每一步都做完",
-                    description:
+                    label: t("每一步都做完"),
+                    description: t(
                       "上面写到的动作和次数都要完成，不能只完成其中一步。",
+                    ),
                     recommended: true,
                   },
                   {
                     value: "custom",
-                    label: "还有别的结束条件",
-                    description: "比如收到停止指令才结束。选择后在下面写清楚。",
+                    label: t("还有别的结束条件"),
+                    description: t(
+                      "比如收到停止指令才结束。选择后在下面写清楚。",
+                    ),
                   },
                 ]}
                 onChange={(completion) =>
@@ -588,13 +628,13 @@ export default function PRDDetails({
               {(details.motion.completion === "custom" ||
                 details.motion.completion_note.trim()) && (
                 <TextField
-                  label="整组动作完成的条件"
+                  label={t("整组动作完成的条件")}
                   value={details.motion.completion_note}
                   disabled={disabled}
                   onChange={(completion_note) =>
                     update("motion", { completion_note })
                   }
-                  placeholder="例如：三个关节都回到指定位置，才算结束"
+                  placeholder={t("例如：三个关节都回到指定位置，才算结束")}
                 />
               )}
               {(details.motion.pattern === "sequence" ||
@@ -602,7 +642,9 @@ export default function PRDDetails({
                 details.motion.steps.length > 0) && (
                 <>
                   <p className="detail-scope-note">
-                    这里收集完整步骤，不会把它们自动变成已支持的单关节任务。需要同时做的动作，请在各步骤说明里写清与谁一起开始、何时结束。
+                    {t(
+                      "这里收集完整步骤，不会把它们自动变成已支持的单关节任务。需要同时做的动作，请在各步骤说明里写清与谁一起开始、何时结束。",
+                    )}
                   </p>
                   {details.motion.steps.map((row, index) => {
                     const patch = (value: Partial<typeof row>) =>
@@ -614,12 +656,14 @@ export default function PRDDetails({
                     return (
                       <div className="detail-row-card" key={row.id}>
                         <header>
-                          <strong>步骤 {index + 1}</strong>
+                          <strong>
+                            {t(`步骤 ${index + 1}`, `Step ${index + 1}`)}
+                          </strong>
                           <RowsActions
                             index={index}
                             total={details.motion.steps.length}
                             disabled={disabled}
-                            label={`步骤${index + 1}`}
+                            label={t(`步骤${index + 1}`, `Step ${index + 1}`)}
                             onMove={(direction) =>
                               update("motion", {
                                 steps: reorderRow(
@@ -639,14 +683,17 @@ export default function PRDDetails({
                           />
                         </header>
                         <Choice
-                          label={`步骤${index + 1}做什么`}
+                          label={t(
+                            `步骤${index + 1}做什么`,
+                            `Step ${index + 1}: action`,
+                          )}
                           value={row.kind}
                           disabled={disabled}
                           options={[
-                            ["move", "转到一个位置"],
-                            ["wait", "等待一段时间"],
-                            ["condition", "等待某个条件"],
-                            ["other", "其他步骤"],
+                            ["move", t("转到一个位置")],
+                            ["wait", t("等待一段时间")],
+                            ["condition", t("等待某个条件")],
+                            ["other", t("其他步骤")],
                           ]}
                           onChange={(kind) =>
                             patch({
@@ -659,14 +706,20 @@ export default function PRDDetails({
                           row.target_rad !== null) && (
                           <div className="guide-fields">
                             <JointChoice
-                              label={`步骤${index + 1}的关节`}
+                              label={t(
+                                `步骤${index + 1}的关节`,
+                                `Step ${index + 1}: joint`,
+                              )}
                               value={row.joint_name}
                               structure={currentStructure}
                               disabled={disabled}
                               onChange={(joint_name) => patch({ joint_name })}
                             />
                             {numeric(
-                              `步骤${index + 1}的目标角度`,
+                              t(
+                                `步骤${index + 1}的目标角度`,
+                                `Step ${index + 1}: target angle`,
+                              ),
                               row.target_rad,
                               (target_rad) => patch({ target_rad }),
                               "",
@@ -676,37 +729,54 @@ export default function PRDDetails({
                         )}
                         {(row.kind === "wait" || row.duration_s !== null) &&
                           numeric(
-                            `步骤${index + 1}等待多久`,
+                            t(
+                              `步骤${index + 1}等待多久`,
+                              `Step ${index + 1}: wait duration`,
+                            ),
                             row.duration_s,
                             (duration_s) => patch({ duration_s }),
-                            "秒",
+                            t("秒"),
                           )}
                         {(row.kind === "condition" || row.condition.trim()) && (
                           <TextField
-                            label={`步骤${index + 1}等待什么条件`}
+                            label={t(
+                              `步骤${index + 1}等待什么条件`,
+                              `Step ${index + 1}: wait condition`,
+                            )}
                             value={row.condition}
                             disabled={disabled}
                             onChange={(condition) => patch({ condition })}
                           />
                         )}
                         <TextField
-                          label={`步骤${index + 1}的说明`}
+                          label={t(
+                            `步骤${index + 1}的说明`,
+                            `Step ${index + 1}: description`,
+                          )}
                           value={row.description}
                           disabled={disabled}
                           onChange={(description) => patch({ description })}
-                          placeholder="比如和哪一步同时开始、结束时保持什么姿态"
+                          placeholder={t(
+                            "比如和哪一步同时开始、结束时保持什么姿态",
+                          )}
                         />
                         <details className="guide-extra" open={undefined}>
-                          <summary>超时和失败时怎么处理</summary>
+                          <summary>{t("超时和失败时怎么处理")}</summary>
                           <div className="guide-fields">
                             {numeric(
-                              `步骤${index + 1}最多等多久`,
+                              t(
+                                `步骤${index + 1}最多等多久`,
+                                `Step ${index + 1}: maximum wait`,
+                              ),
                               row.timeout_s,
                               (timeout_s) => patch({ timeout_s }),
-                              "秒",
+                              t("秒"),
                             )}
                             <TextField
-                              label={`步骤${index + 1}失败后怎么办`}
+                              label={t(
+                                `步骤${index + 1}失败后怎么办`,
+                                `Step ${index + 1}: failure behavior`,
+                              )}
                               value={row.on_failure}
                               disabled={disabled}
                               onChange={(on_failure) => patch({ on_failure })}
@@ -727,7 +797,7 @@ export default function PRDDetails({
                     }
                   >
                     <Plus size={17} />
-                    增加一个步骤
+                    {t("增加一个步骤")}
                   </button>
                 </>
               )}
@@ -735,25 +805,25 @@ export default function PRDDetails({
           )}
           <Group
             {...selectionProps("lifecycle")}
-            description="什么时候开始、做完后怎样停下、中途取消时怎么办？"
+            description={t("什么时候开始、做完后怎样停下、中途取消时怎么办？")}
           >
             {shown("lifecycle") && (
               <>
                 <TextField
-                  label="开始条件和开始前的状态"
+                  label={t("开始条件和开始前的状态")}
                   value={details.lifecycle.start}
                   disabled={disabled}
                   onChange={(start) => update("lifecycle", { start })}
-                  placeholder="谁来触发？启动前各部位在哪里？"
+                  placeholder={t("谁来触发？启动前各部位在哪里？")}
                 />
                 <TextField
-                  label="结束后要保持什么状态"
+                  label={t("结束后要保持什么状态")}
                   value={details.lifecycle.finish}
                   disabled={disabled}
                   onChange={(finish) => update("lifecycle", { finish })}
                 />
                 <TextField
-                  label="中途取消时怎么处理"
+                  label={t("中途取消时怎么处理")}
                   value={details.lifecycle.cancel}
                   disabled={disabled}
                   onChange={(cancel) => update("lifecycle", { cancel })}
@@ -767,31 +837,36 @@ export default function PRDDetails({
         <>
           <Group
             {...groupProps("device_mapping")}
-            description="把模型里的关节和将来使用的电机、驱动器、反馈对应起来。"
+            description={t(
+              "把模型里的关节和将来使用的电机、驱动器、反馈对应起来。",
+            )}
           >
             <GuideOptions
-              label="这些设备对应关系用在哪里"
+              label={t("这些设备对应关系用在哪里")}
               value={details.device_mapping.scope}
               disabled={disabled}
               options={[
                 {
                   value: "simulation_only",
-                  label: "先用模拟设备",
-                  description:
+                  label: t("先用模拟设备"),
+                  description: t(
                     "没有实物也能先整理需求；不需要填写电机地址、引脚或接线。",
+                  ),
                   recommended: true,
                 },
                 {
                   value: "reference_only",
-                  label: "先把实物资料存好",
-                  description:
+                  label: t("先把实物资料存好"),
+                  description: t(
                     "已经有手册或接线资料，可以记在下面；这轮仍不连接实物。",
+                  ),
                 },
                 {
                   value: "required",
-                  label: "这轮必须用实物",
-                  description:
+                  label: t("这轮必须用实物"),
+                  description: t(
                     "记录真实设备要求；目前不能执行这种任务，资料缺失时不会猜测。",
+                  ),
                 },
               ]}
               onChange={(scope) =>
@@ -805,7 +880,9 @@ export default function PRDDetails({
               details.device_mapping.entries.length > 0) && (
               <>
                 <p className="field-hint">
-                  每行独立记录一个关节。模型或关节变了，原记录仍保留，需要手动重新关联；地址、引脚和电压不要猜。
+                  {t(
+                    "每行独立记录一个关节。模型或关节变了，原记录仍保留，需要手动重新关联；地址、引脚和电压不要猜。",
+                  )}
                 </p>
                 {details.device_mapping.entries.map((row, index) => {
                   const patch = (value: Partial<typeof row>) =>
@@ -822,12 +899,20 @@ export default function PRDDetails({
                   return (
                     <div className="detail-row-card" key={row.id}>
                       <header>
-                        <strong>设备对应 {index + 1}</strong>
+                        <strong>
+                          {t(
+                            `设备对应 ${index + 1}`,
+                            `Device mapping ${index + 1}`,
+                          )}
+                        </strong>
                         <button
                           type="button"
                           className="button secondary"
                           disabled={disabled}
-                          aria-label={`删除设备对应${index + 1}`}
+                          aria-label={t(
+                            `删除设备对应${index + 1}`,
+                            `Delete device mapping ${index + 1}`,
+                          )}
                           onClick={() =>
                             update("device_mapping", {
                               entries: details.device_mapping.entries.filter(
@@ -841,10 +926,16 @@ export default function PRDDetails({
                       </header>
                       <p className="detail-binding">
                         {row.structure_id
-                          ? `已记录结构：${row.structure_id}`
-                          : "还没关联结构"}
+                          ? t(
+                              `已记录结构：${row.structure_id}`,
+                              `Recorded structure: ${row.structure_id}`,
+                            )
+                          : t("还没关联结构")}
                         {row.source_sha256 && (
-                          <small>来源摘要：{row.source_sha256}</small>
+                          <small>
+                            {t("来源摘要：")}
+                            {row.source_sha256}
+                          </small>
                         )}
                       </p>
                       <button
@@ -861,20 +952,25 @@ export default function PRDDetails({
                           })
                         }
                       >
-                        关联当前结构与所选关节
+                        {t("关联当前结构与所选关节")}
                       </button>
                       {!match && row.structure_id && (
                         <p className="detail-scope-note">
-                          这行记录的结构与当前选择不一致，请核对后重新关联。
+                          {t(
+                            "这行记录的结构与当前选择不一致，请核对后重新关联。",
+                          )}
                         </p>
                       )}
                       {!currentStructure && (
                         <p className="field-hint">
-                          先在第 2 步选结构与关节，再回来关联。
+                          {t("先在第 2 步选结构与关节，再回来关联。")}
                         </p>
                       )}
                       <JointChoice
-                        label={`设备对应${index + 1}的关节`}
+                        label={t(
+                          `设备对应${index + 1}的关节`,
+                          `Device mapping ${index + 1}: joint`,
+                        )}
                         value={row.joint_name}
                         structure={match ? currentStructure : null}
                         disabled={disabled || !match}
@@ -883,59 +979,83 @@ export default function PRDDetails({
                       <div className="guide-fields">
                         <TextField
                           short
-                          label={`设备${index + 1}的电机或舵机`}
+                          label={t(
+                            `设备${index + 1}的电机或舵机`,
+                            `Device ${index + 1}: motor or servo`,
+                          )}
                           value={row.device}
                           disabled={disabled}
                           onChange={(device) => patch({ device })}
                         />
                         <TextField
                           short
-                          label={`设备${index + 1}的驱动器`}
+                          label={t(
+                            `设备${index + 1}的驱动器`,
+                            `Device ${index + 1}: driver`,
+                          )}
                           value={row.driver}
                           disabled={disabled}
                           onChange={(driver) => patch({ driver })}
                         />
                         <TextField
                           short
-                          label={`设备${index + 1}的连接接口`}
+                          label={t(
+                            `设备${index + 1}的连接接口`,
+                            `Device ${index + 1}: connection interface`,
+                          )}
                           value={row.interface}
                           disabled={disabled}
                           onChange={(value) => patch({ interface: value })}
-                          placeholder="例如：某个串口、CAN 通道"
+                          placeholder={t("例如：某个串口、CAN 通道")}
                         />
                         <TextField
                           short
-                          label={`设备${index + 1}的地址或通道号`}
+                          label={t(
+                            `设备${index + 1}的地址或通道号`,
+                            `Device ${index + 1}: address or channel`,
+                          )}
                           value={row.address}
                           disabled={disabled}
                           onChange={(address) => patch({ address })}
                         />
                         <TextField
-                          label={`设备${index + 1}的接线`}
+                          label={t(
+                            `设备${index + 1}的接线`,
+                            `Device ${index + 1}: wiring`,
+                          )}
                           value={row.wiring}
                           disabled={disabled}
                           onChange={(wiring) => patch({ wiring })}
                         />
                         <TextField
-                          label={`设备${index + 1}从哪里获得反馈`}
+                          label={t(
+                            `设备${index + 1}从哪里获得反馈`,
+                            `Device ${index + 1}: feedback source`,
+                          )}
                           value={row.feedback}
                           disabled={disabled}
                           onChange={(feedback) => patch({ feedback })}
                         />
                         <TextField
-                          label={`设备${index + 1}的资料出处`}
+                          label={t(
+                            `设备${index + 1}的资料出处`,
+                            `Device ${index + 1}: source reference`,
+                          )}
                           value={row.source}
                           disabled={disabled}
                           onChange={(source) => patch({ source })}
                         />
                         <Choice
-                          label={`设备${index + 1}的资料状态`}
+                          label={t(
+                            `设备${index + 1}的资料状态`,
+                            `Device ${index + 1}: reference status`,
+                          )}
                           value={row.status}
                           disabled={disabled}
                           options={[
-                            ["unknown", "还没确认"],
-                            ["provided", "已填写，待核对"],
-                            ["documented", "已填资料出处"],
+                            ["unknown", t("还没确认")],
+                            ["provided", t("已填写，待核对")],
+                            ["documented", t("已填资料出处")],
                           ]}
                           onChange={(status) =>
                             patch({
@@ -964,32 +1084,36 @@ export default function PRDDetails({
                   }
                 >
                   <Plus size={17} />
-                  增加设备对应
+                  {t("增加设备对应")}
                 </button>
               </>
             )}
           </Group>
           <Group
             {...selectionProps("coordinates")}
-            description="零点在哪里、哪边算正方向，收到的数字又代表什么？"
+            description={t("零点在哪里、哪边算正方向，收到的数字又代表什么？")}
           >
             {currentStructure && (
               <p className="field-hint">
-                当前结构：{currentStructure.name}；关节：
-                {answers.joint_name || "待选"}。模型方向与范围可在第 2
-                步查看，实物安装方向仍需单独确认。
+                {t("当前结构：")}
+                {currentStructure.name}
+                {t("；关节：")}
+                {answers.joint_name || t("待选")}
+                {t(
+                  "。模型方向与范围可在第 2 步查看，实物安装方向仍需单独确认。",
+                )}
               </p>
             )}
             {shown("coordinates") && (
               <div className="guide-fields">
                 {(
                   [
-                    ["zero", "零位怎么确定"],
-                    ["direction", "哪边算正方向"],
-                    ["command_unit", "指令的数值和单位"],
-                    ["feedback", "反馈数值和单位"],
-                    ["conversion", "实物数值怎样换成模型数值"],
-                    ["source", "零位和单位的资料出处"],
+                    ["zero", t("零位怎么确定")],
+                    ["direction", t("哪边算正方向")],
+                    ["command_unit", t("指令的数值和单位")],
+                    ["feedback", t("反馈数值和单位")],
+                    ["conversion", t("实物数值怎样换成模型数值")],
+                    ["source", t("零位和单位的资料出处")],
                   ] as const
                 ).map(([field, label]) => (
                   <TextField
@@ -1007,17 +1131,17 @@ export default function PRDDetails({
           </Group>
           <Group
             {...selectionProps("communication")}
-            description="让 ROS 和 ESP32 各做什么，两端怎样传指令和反馈？"
+            description={t("让 ROS 和 ESP32 各做什么，两端怎样传指令和反馈？")}
           >
             {shown("communication") && (
               <>
                 <div className="guide-fields">
                   {(
                     [
-                      ["transport", "两端通过什么连接"],
-                      ["ros_role", "ROS 负责什么"],
-                      ["esp_role", "ESP32 负责什么"],
-                      ["message", "指令和反馈要包含什么"],
+                      ["transport", t("两端通过什么连接")],
+                      ["ros_role", t("ROS 负责什么")],
+                      ["esp_role", t("ESP32 负责什么")],
+                      ["message", t("指令和反馈要包含什么")],
                     ] as const
                   ).map(([field, label]) => (
                     <TextField
@@ -1033,16 +1157,16 @@ export default function PRDDetails({
                 </div>
                 <div className="guide-fields">
                   {numeric(
-                    "每秒发送多少次",
+                    t("每秒发送多少次"),
                     details.communication.rate_hz,
                     (rate_hz) => update("communication", { rate_hz }),
-                    "次/秒",
+                    t("次/秒"),
                   )}
                   {numeric(
-                    "多久没有消息算失联",
+                    t("多久没有消息算失联"),
                     details.communication.timeout_ms,
                     (timeout_ms) => update("communication", { timeout_ms }),
-                    "毫秒",
+                    t("毫秒"),
                   )}
                 </div>
               </>
@@ -1054,25 +1178,25 @@ export default function PRDDetails({
         <>
           <Group
             {...selectionProps("environment")}
-            description="负载、安装方式和周围环境都会影响真实效果。"
+            description={t("负载、安装方式和周围环境都会影响真实效果。")}
           >
             {shown("environment") && (
               <>
                 <div className="guide-fields">
                   <TextField
-                    label="机器人怎么安装"
+                    label={t("机器人怎么安装")}
                     value={details.environment.mounting}
                     disabled={disabled}
                     onChange={(mounting) => update("environment", { mounting })}
                   />
                   {numeric(
-                    "需要带多重的负载",
+                    t("需要带多重的负载"),
                     details.environment.load_kg,
                     (load_kg) => update("environment", { load_kg }),
                     "kg",
                   )}
                   <TextField
-                    label="周围有什么障碍或人"
+                    label={t("周围有什么障碍或人")}
                     value={details.environment.obstacles}
                     disabled={disabled}
                     onChange={(obstacles) =>
@@ -1080,14 +1204,14 @@ export default function PRDDetails({
                     }
                   />
                   <TextField
-                    label="可活动的空间"
+                    label={t("可活动的空间")}
                     value={details.environment.space}
                     disabled={disabled}
                     onChange={(space) => update("environment", { space })}
                   />
                 </div>
                 <TextField
-                  label="其他环境条件"
+                  label={t("其他环境条件")}
                   value={details.environment.notes}
                   disabled={disabled}
                   onChange={(notes) => update("environment", { notes })}
@@ -1097,16 +1221,18 @@ export default function PRDDetails({
           </Group>
           <Group
             {...selectionProps("faults")}
-            description="不要只写“出错就停止”，还要说明什么算出错、之后能不能继续。"
+            description={t(
+              "不要只写“出错就停止”，还要说明什么算出错、之后能不能继续。",
+            )}
           >
             {shown("faults") && (
               <div className="guide-fields">
                 {(
                   [
-                    ["disconnect", "通信断开时怎么办"],
-                    ["invalid_data", "反馈不对或丢失时怎么办"],
-                    ["limit_hit", "碰到限制或超出范围时怎么办"],
-                    ["recovery", "出错后怎样恢复"],
+                    ["disconnect", t("通信断开时怎么办")],
+                    ["invalid_data", t("反馈不对或丢失时怎么办")],
+                    ["limit_hit", t("碰到限制或超出范围时怎么办")],
+                    ["recovery", t("出错后怎样恢复")],
                   ] as const
                 ).map(([field, label]) => (
                   <TextField
@@ -1122,7 +1248,9 @@ export default function PRDDetails({
           </Group>
           <Group
             {...selectionProps("acceptance")}
-            description="把成功标准写成能检查的条件，而不是只写“运行正常”。"
+            description={t(
+              "把成功标准写成能检查的条件，而不是只写“运行正常”。",
+            )}
           >
             {shown("acceptance") && (
               <>
@@ -1136,12 +1264,20 @@ export default function PRDDetails({
                   return (
                     <div className="detail-row-card" key={row.id}>
                       <header>
-                        <strong>检查条件 {index + 1}</strong>
+                        <strong>
+                          {t(
+                            `检查条件 ${index + 1}`,
+                            `Acceptance criterion ${index + 1}`,
+                          )}
+                        </strong>
                         <button
                           type="button"
                           className="button secondary"
                           disabled={disabled}
-                          aria-label={`删除检查条件${index + 1}`}
+                          aria-label={t(
+                            `删除检查条件${index + 1}`,
+                            `Delete acceptance criterion ${index + 1}`,
+                          )}
                           onClick={() =>
                             update("acceptance", {
                               criteria: details.acceptance.criteria.filter(
@@ -1154,26 +1290,35 @@ export default function PRDDetails({
                         </button>
                       </header>
                       <TextField
-                        label={`条件${index + 1}检查什么`}
+                        label={t(
+                          `条件${index + 1}检查什么`,
+                          `Criterion ${index + 1}: metric`,
+                        )}
                         value={row.metric}
                         disabled={disabled}
                         onChange={(metric) => patch({ metric })}
-                        placeholder="例如：完成往返的次数"
+                        placeholder={t("例如：完成往返的次数")}
                       />
                       <div className="guide-fields">
                         <TextField
-                          label={`条件${index + 1}期望结果`}
+                          label={t(
+                            `条件${index + 1}期望结果`,
+                            `Criterion ${index + 1}: expected result`,
+                          )}
                           value={row.expected}
                           disabled={disabled}
                           onChange={(expected) => patch({ expected })}
-                          placeholder="例如：完整往返 3 次"
+                          placeholder={t("例如：完整往返 3 次")}
                         />
                         <TextField
-                          label={`条件${index + 1}怎么判断`}
+                          label={t(
+                            `条件${index + 1}怎么判断`,
+                            `Criterion ${index + 1}: check method`,
+                          )}
                           value={row.method}
                           disabled={disabled}
                           onChange={(method) => patch({ method })}
-                          placeholder="例如：查看关节位置记录，数 A→B→A"
+                          placeholder={t("例如：查看关节位置记录，数 A→B→A")}
                         />
                       </div>
                     </div>
@@ -1200,7 +1345,7 @@ export default function PRDDetails({
                   }
                 >
                   <Plus size={17} />
-                  增加检查条件
+                  {t("增加检查条件")}
                 </button>
               </>
             )}
@@ -1222,6 +1367,7 @@ export function DetailCoverage({
   onStep: (step: number) => void;
   disabled: boolean;
 }) {
+  const { t } = useI18n();
   const statusLabels = {
     confirmed: "已确认本机设置",
     reference_only: "只存参考资料",
@@ -1229,20 +1375,22 @@ export function DetailCoverage({
     unsupported: "当前不能执行",
   };
   return (
-    <section className="detail-coverage" aria-label="详细需求汇总">
-      <h4>这八类问题是否说明白了</h4>
+    <section className="detail-coverage" aria-label={t("详细需求汇总")}>
+      <h4>{t("这八类问题是否说明白了")}</h4>
       <p>
-        下面是当前填写和支持范围。信息齐全只表示可以核对，不能替代后续代码检查。
+        {t(
+          "下面是当前填写和支持范围。信息齐全只表示可以核对，不能替代后续代码检查。",
+        )}
       </p>
       {coverage.map((row) => (
         <div key={row.group} className={`detail-coverage-row ${row.status}`}>
           <div>
-            <strong>{row.label}</strong>
-            <span>{statusLabels[row.status]}</span>
-            <p>{row.summary}</p>
+            <strong>{t(detailLabels[row.group])}</strong>
+            <span>{t(statusLabels[row.status])}</span>
+            <p>{detailSummaryText(row.summary, t)}</p>
             {details && (
               <details className="detail-readback">
-                <summary>查看这组填写内容</summary>
+                <summary>{t("查看这组填写内容")}</summary>
                 <DetailReadback value={details[row.group]} />
               </details>
             )}
@@ -1253,7 +1401,7 @@ export function DetailCoverage({
             disabled={disabled}
             onClick={() => onStep(row.section - 1)}
           >
-            去第 {row.section} 步修改
+            {t(`去第 ${row.section} 步修改`, `Edit Step ${row.section}`)}
           </button>
         </div>
       ))}
@@ -1333,18 +1481,19 @@ const readbackOptions: Record<string, string> = {
   documented: "已填资料出处",
 };
 function DetailReadback({ value }: { value: unknown }) {
+  const { t } = useI18n();
   if (Array.isArray(value))
     return value.length ? (
       <div className="detail-readback-list">
         {value.map((row, index) => (
           <div key={index}>
-            <strong>第 {index + 1} 项</strong>
+            <strong>{t(`第 ${index + 1} 项`, `Item ${index + 1}`)}</strong>
             <DetailReadback value={row} />
           </div>
         ))}
       </div>
     ) : (
-      <span>无补充条目</span>
+      <span>{t("无补充条目")}</span>
     );
   if (value && typeof value === "object")
     return (
@@ -1353,12 +1502,12 @@ function DetailReadback({ value }: { value: unknown }) {
           .filter(([key]) => key !== "id")
           .map(([key, item]) => (
             <div key={key}>
-              <dt>{readbackLabels[key] || key}</dt>
+              <dt>{readbackLabels[key] ? t(readbackLabels[key]) : key}</dt>
               <dd>
                 {item !== null && typeof item === "object" ? (
                   <DetailReadback value={item} />
                 ) : item === null || item === "" ? (
-                  "未填写"
+                  t("未填写")
                 ) : [
                     "selection",
                     "pattern",
@@ -1367,7 +1516,11 @@ function DetailReadback({ value }: { value: unknown }) {
                     "kind",
                     "status",
                   ].includes(key) ? (
-                  readbackOptions[String(item)] || String(item)
+                  readbackOptions[String(item)] ? (
+                    t(readbackOptions[String(item)])
+                  ) : (
+                    String(item)
+                  )
                 ) : (
                   String(item)
                 )}
@@ -1376,5 +1529,5 @@ function DetailReadback({ value }: { value: unknown }) {
           ))}
       </dl>
     );
-  return <span>{String(value ?? "未填写")}</span>;
+  return <span>{String(value ?? t("未填写"))}</span>;
 }

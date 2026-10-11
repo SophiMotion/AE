@@ -1,3 +1,6 @@
+import { useI18n } from "./i18n";
+import { t } from "./localeStore";
+import "./i18nCore";
 import { ArrowCounterClockwise, Check } from "@phosphor-icons/react";
 import type { Status } from "./api";
 
@@ -30,10 +33,12 @@ export default function Workflow({
   hasPlan: boolean;
   hasResult: boolean;
 }) {
+  const { locale } = useI18n();
+
   const current = currentStage(status, hasPlan, hasResult);
   return (
-    <section className="workflow" aria-label="工程流程">
-      <nav className="workflow-steps" aria-label="工程阶段">
+    <section className="workflow" aria-label={t("工程流程")}>
+      <nav className="workflow-steps" aria-label={t("工程阶段")}>
         {steps.map(([title, description], index) => (
           <button
             key={title}
@@ -51,15 +56,15 @@ export default function Workflow({
               )}
             </span>
             <span className="workflow-step-label">
-              <strong>{title}</strong>
-              <small>{description}</small>
+              <strong>{t(title)}</strong>
+              <small>{t(description)}</small>
             </span>
           </button>
         ))}
       </nav>
       <div className="feedback-caption">
         <ArrowCounterClockwise size={14} aria-hidden="true" />
-        <span>根据检查结果修改，再跑一遍</span>
+        <span>{t("根据检查结果修改，再跑一遍")}</span>
       </div>
     </section>
   );

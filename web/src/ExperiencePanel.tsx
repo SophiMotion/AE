@@ -1,3 +1,6 @@
+import { useI18n } from "./i18n";
+import { t } from "./localeStore.ts";
+import "./i18nPanels";
 import { useEffect, useState } from "react";
 import { BookOpenText, CircleNotch } from "@phosphor-icons/react";
 import { api, printable, type Run } from "./api";
@@ -41,6 +44,7 @@ interface Experience {
 }
 
 export default function ExperiencePanel({ run }: { run: Run }) {
+  useI18n();
   const [open, setOpen] = useState(false);
   const [item, setItem] = useState<Experience | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,15 +78,19 @@ export default function ExperiencePanel({ run }: { run: Run }) {
     <section className="experience-panel">
       <div className="section-intro">
         <div>
-          <h3>把这轮结果留给下一次</h3>
-          <p>先核对适用范围和证据，再存入资料库；成功、失败与修复分别标记。</p>
+          <h3>{t("把这轮结果留给下一次")}</h3>
+          <p>
+            {t(
+              "先核对适用范围和证据，再存入资料库；成功、失败与修复分别标记。",
+            )}
+          </p>
         </div>
         <button
           className="button secondary"
           onClick={() => setOpen((value) => !value)}
         >
           <BookOpenText size={17} />
-          {open ? "收起经验" : "查看并保存经验"}
+          {open ? t("收起经验") : t("查看并保存经验")}
         </button>
       </div>
       {open && (
@@ -90,7 +98,7 @@ export default function ExperiencePanel({ run }: { run: Run }) {
           {busy && (
             <p>
               <CircleNotch className="spin" size={18} />
-              正在读取记录…
+              {t("正在读取记录…")}
             </p>
           )}
           {error && (
@@ -103,36 +111,40 @@ export default function ExperiencePanel({ run }: { run: Run }) {
               <div className="experience-kind">
                 {
                   {
-                    success: "通过记录",
-                    failure: "失败教训",
-                    repair: "修复与复测",
+                    success: t("通过记录"),
+                    failure: t("失败教训"),
+                    repair: t("修复与复测"),
                   }[item.kind]
                 }{" "}
-                · 实物未验证
+                {t("· 实物未验证")}
               </div>
               <h3>{item.title}</h3>
               <p>{item.summary}</p>
               <dl>
                 <div>
-                  <dt>适用板型</dt>
+                  <dt>{t("适用板型")}</dt>
                   <dd>
                     {item.applicability.board.toUpperCase()} · ROS{" "}
                     {item.applicability.ros_distro}
                   </dd>
                 </div>
                 <div>
-                  <dt>适用任务</dt>
+                  <dt>{t("适用任务")}</dt>
                   <dd>
                     {item.applicability.task_type === "joint_position"
-                      ? "关节位置控制"
-                      : "传感器触发"}
+                      ? t("关节位置控制")
+                      : item.applicability.task_type === "joint_sequence"
+                        ? t("多关节顺序动作")
+                        : item.applicability.task_type === "sensor_threshold"
+                          ? t("传感器触发")
+                          : item.applicability.task_type}
                   </dd>
                 </div>
                 <div>
-                  <dt>检查记录</dt>
+                  <dt>{t("检查记录")}</dt>
                   <dd>
                     {item.result.passed_checks} / {item.result.total_checks}{" "}
-                    项通过
+                    {t("项通过")}
                   </dd>
                 </div>
               </dl>
@@ -142,12 +154,12 @@ export default function ExperiencePanel({ run }: { run: Run }) {
               )}
               {!!item.result.failed_checks?.length && (
                 <details>
-                  <summary>失败项</summary>
+                  <summary>{t("失败项")}</summary>
                   <pre>{printable(item.result.failed_checks)}</pre>
                 </details>
               )}
               <details>
-                <summary>源码版本和证据</summary>
+                <summary>{t("源码版本和证据")}</summary>
                 <pre>
                   {printable({
                     applicability: item.applicability,
@@ -163,12 +175,18 @@ export default function ExperiencePanel({ run }: { run: Run }) {
                 ) && (
                   <div className="ai-content">
                     <p className="ai-label">
-                      以下程序摘录来自本轮 AI 生成源码 ·
-                      工具和提示词见页面下方“AI 记录” · 摘录不包含完整驱动
+                      {t(
+                        "以下程序摘录来自本轮 AI 生成源码 · 工具和提示词见页面下方“AI 记录” · 摘录不包含完整驱动",
+                      )}
                     </p>
                     {item.code_versions.map((version) => (
                       <div key={version.attempt}>
-                        <strong>第 {version.attempt} 次保存</strong>
+                        <strong>
+                          {t(
+                            `第 ${version.attempt} 次保存`,
+                            `Save ${version.attempt}`,
+                          )}
+                        </strong>
                         {version.ros_excerpt && (
                           <pre>{version.ros_excerpt}</pre>
                         )}
@@ -182,7 +200,9 @@ export default function ExperiencePanel({ run }: { run: Run }) {
               </details>
               {published ? (
                 <div className="notice success">
-                  已存入资料库。后续匹配任务可查到此记录；如不再适用，可在资料库移除。已有运行引用不会改变。
+                  {t(
+                    "已存入资料库。后续匹配任务可查到此记录；如不再适用，可在资料库移除。已有运行引用不会改变。",
+                  )}
                 </div>
               ) : (
                 <>
@@ -193,7 +213,7 @@ export default function ExperiencePanel({ run }: { run: Run }) {
                       disabled={busy || !item.publishable}
                       onChange={(e) => setChecked(e.target.checked)}
                     />
-                    已核对范围、代码和结果，允许后续匹配任务作为参考
+                    {t("已核对范围、代码和结果，允许后续匹配任务作为参考")}
                   </label>
                   <button
                     className="button primary"
@@ -215,11 +235,11 @@ export default function ExperiencePanel({ run }: { run: Run }) {
                       }
                     }}
                   >
-                    核对后存入资料库
+                    {t("核对后存入资料库")}
                   </button>
                   {!item.publishable && (
                     <p className="field-hint">
-                      这份记录暂不满足入库条件，请查看上方说明。
+                      {t("这份记录暂不满足入库条件，请查看上方说明。")}
                     </p>
                   )}
                 </>

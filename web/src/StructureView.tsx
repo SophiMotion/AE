@@ -1,3 +1,6 @@
+import { useI18n } from "./i18n";
+import { t } from "./localeStore";
+import { coreErrorText } from "./i18nCore";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -29,22 +32,55 @@ async function readMesh(url: string): Promise<SourceModel> {
   if (!cached) {
     cached = (async () => {
       const response = await fetch(url);
-      if (!response.ok) throw new Error(`结构模型读取失败（${response.status}）`);
+      if (!response.ok)
+        throw new Error(`结构模型读取失败（${response.status}）`);
       const data = await response.json();
-      if (!Array.isArray(data.meshes) || !data.meshes.length) throw new Error("模型没有可显示的网格");
-      if (data.meshes[0].positionOffset === undefined) return data as SourceModel;
-      const binary = await fetch(new URL("./model.bin", new URL(url, window.location.href)));
+      if (!Array.isArray(data.meshes) || !data.meshes.length)
+        throw new Error("模型没有可显示的网格");
+      if (data.meshes[0].positionOffset === undefined)
+        return data as SourceModel;
+      const binary = await fetch(
+        new URL("./model.bin", new URL(url, window.location.href)),
+      );
       if (!binary.ok) throw new Error(`模型几何读取失败（${binary.status}）`);
       const buffer = await binary.arrayBuffer();
       return {
         metadata: { source: data.source, units: data.units || "mm" },
-        meshes: data.meshes.map((entry: {id: number; color: number[]; positionOffset: number; positionCount: number; positionMin: number[]; positionSpan: number[]; indexBits: number; indexOffset: number; indexCount: number}) => {
-          const packed = new Uint16Array(buffer, entry.positionOffset, entry.positionCount);
-          const indices = entry.indexBits === 16 ? new Uint16Array(buffer, entry.indexOffset, entry.indexCount) : new Uint32Array(buffer, entry.indexOffset, entry.indexCount);
-          return { id: entry.id, name: `part-${entry.id}`, color: entry.color,
-            positions: Array.from(packed, (value, index) => entry.positionMin[index % 3] + value / 65535 * entry.positionSpan[index % 3]),
-            indices: Array.from(indices) };
-        }),
+        meshes: data.meshes.map(
+          (entry: {
+            id: number;
+            color: number[];
+            positionOffset: number;
+            positionCount: number;
+            positionMin: number[];
+            positionSpan: number[];
+            indexBits: number;
+            indexOffset: number;
+            indexCount: number;
+          }) => {
+            const packed = new Uint16Array(
+              buffer,
+              entry.positionOffset,
+              entry.positionCount,
+            );
+            const indices =
+              entry.indexBits === 16
+                ? new Uint16Array(buffer, entry.indexOffset, entry.indexCount)
+                : new Uint32Array(buffer, entry.indexOffset, entry.indexCount);
+            return {
+              id: entry.id,
+              name: `part-${entry.id}`,
+              color: entry.color,
+              positions: Array.from(
+                packed,
+                (value, index) =>
+                  entry.positionMin[index % 3] +
+                  (value / 65535) * entry.positionSpan[index % 3],
+              ),
+              indices: Array.from(indices),
+            };
+          },
+        ),
       };
     })();
     publicMeshCache.set(url, cached);
@@ -73,6 +109,8 @@ export default function StructureView({
   }[];
   previewPositions?: Record<string, number>;
 }) {
+  const { locale } = useI18n();
+
   const host = useRef<HTMLDivElement>(null);
   const pose = useRef<
     (name: string, value: number, positions?: Record<string, number>) => void
@@ -89,6 +127,17 @@ export default function StructureView({
   const replay = !!joint && (!!series?.length || !!vectorSeries?.length);
   const frames = vectorSeries?.length ? vectorSeries : series;
   const { lower, upper } = jointBounds(joint);
+  useEffect(() => {
+    host.current
+      ?.querySelector("canvas")
+      ?.setAttribute(
+        "aria-label",
+        t(
+          `${structure.name}，拖动旋转，滚轮缩放`,
+          `${structure.name}. Drag to rotate; scroll to zoom.`,
+        ),
+      );
+  }, [locale, structure.name, mesh]);
   useEffect(() => {
     setAngle(Math.max(lower, Math.min(upper, target)));
     setFrame(0);
@@ -133,7 +182,10 @@ export default function StructureView({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.domElement.setAttribute(
       "aria-label",
-      `${structure.name}，拖动旋转，滚轮缩放`,
+      t(
+        `${structure.name}，拖动旋转，滚轮缩放`,
+        `${structure.name}. Drag to rotate; scroll to zoom.`,
+      ),
     );
     renderer.domElement.setAttribute("role", "img");
     container.append(renderer.domElement);
@@ -386,15 +438,15 @@ export default function StructureView({
           <Cube size={16} />
           {mesh
             ? structure.format === "sophicore-kinematic"
-              ? "Sophicore 关节结构"
-              : "原站结构参考"
+              ? t("Sophicore 关节结构")
+              : t("原站结构参考")
             : structure.id.startsWith("builtin-")
-              ? "内置测试模型"
-              : "导入结构预览"}
+              ? t("内置测试模型")
+              : t("导入结构预览")}
         </span>
         <button
           className="icon-button"
-          aria-label="重置3D视角"
+          aria-label={t("重置3D视角")}
           onClick={() => reset.current()}
         >
           <ArrowCounterClockwise size={17} />
@@ -406,30 +458,37 @@ export default function StructureView({
           {loading ? (
             <>
               <CircleNotch className="spin" size={27} />
-              <strong>正在读取原站结构</strong>
-              <p>{isPublicDemo ? "首次加载约 10 MB 显示模型；保留全部部件和三角面。" : "首次需加载约 58 MB 网格。"}</p>
+              <strong>{t("正在读取原站结构")}</strong>
+              <p>
+                {isPublicDemo
+                  ? t("首次加载约 10 MB 显示模型；保留全部部件和三角面。")
+                  : t("首次需加载约 58 MB 网格。")}
+              </p>
             </>
           ) : (
             <>
               <Cube size={27} />
-              <p>{error}</p>
+              <p>{coreErrorText(error)}</p>
             </>
           )}
         </div>
       )}
       <div className="viewer-caption">
-        <span>拖动旋转 · 滚轮缩放</span>
+        <span>{t("拖动旋转 · 滚轮缩放")}</span>
         <span>
           {mesh
-            ? `${mesh.meshes.length} 个部件 · 模型姿态预览`
-            : "结构预览，未驱动实物"}
+            ? t(
+                `${mesh.meshes.length} 个部件 · 模型姿态预览`,
+                `${mesh.meshes.length} parts · Model pose preview`,
+              )
+            : t("结构预览，未驱动实物")}
         </span>
       </div>
       {replay ? (
         <div className="viewer-controls">
           <button
             className="icon-button"
-            aria-label={playing ? "暂停轨迹回放" : "播放轨迹回放"}
+            aria-label={playing ? t("暂停轨迹回放") : t("播放轨迹回放")}
             onClick={() => {
               if (frame === frames!.length - 1) setFrame(0);
               setPlaying(!playing);
@@ -439,7 +498,7 @@ export default function StructureView({
           </button>
           <input
             type="range"
-            aria-label="运行轨迹时间"
+            aria-label={t("运行轨迹时间")}
             min={0}
             max={frames!.length - 1}
             value={frame}
@@ -451,18 +510,24 @@ export default function StructureView({
           <span>{(frames![frame]?.time ?? 0).toFixed(2)} s</span>
           <small>
             {vectorSeries?.length
-              ? `计划阶段 ${vectorSeries[frame]?.stage_id || "未记录"} · 计划往返 ${vectorSeries[frame]?.cycle_index ?? 0} · 全组实际角度`
-              : `${joint?.label || joint?.name} · 本轮绝对角度`}
+              ? t(
+                  `计划阶段 ${vectorSeries[frame]?.stage_id || t("未记录")} · 计划往返 ${vectorSeries[frame]?.cycle_index ?? 0} · 全组实际角度`,
+                  `Planned stage ${vectorSeries[frame]?.stage_id || t("未记录")} · Planned cycle ${vectorSeries[frame]?.cycle_index ?? 0} · Actual joint angles`,
+                )
+              : t(
+                  `${joint?.label || joint?.name} · 本轮绝对角度`,
+                  `${joint?.label || joint?.name} · Absolute angle`,
+                )}
           </small>
         </div>
       ) : previewPositions ? (
         <div className="viewer-controls">
-          <small>全组目标姿势预览 · 仅供人工核对，尚未运行</small>
+          <small>{t("全组目标姿势预览 · 仅供人工核对，尚未运行")}</small>
         </div>
       ) : (
         joint && (
           <div className="viewer-controls">
-            <label htmlFor={`pose-${structure.id}`}>关节预览</label>
+            <label htmlFor={`pose-${structure.id}`}>{t("关节预览")}</label>
             <input
               id={`pose-${structure.id}`}
               type="range"
@@ -476,7 +541,8 @@ export default function StructureView({
               {angle.toFixed(2)} {joint.type === "prismatic" ? "m" : "rad"}
             </span>
             <small>
-              {joint?.label || joint?.name} · 只看姿态，不修改任务目标
+              {joint?.label || joint?.name}
+              {t("· 只看姿态，不修改任务目标")}
             </small>
           </div>
         )

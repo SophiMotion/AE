@@ -1,4 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useI18n } from "./i18n";
+import { t } from "./localeStore";
+import "./i18nCore";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowSquareOut,
   CircleNotch,
@@ -27,6 +30,8 @@ export default function StructurePanel({
   onBusyChange?: (busy: boolean) => void;
   onStructure?: (value: Structure | null) => void;
 }) {
+  const { locale } = useI18n();
+
   const [items, setItems] = useState<Structure[]>([]);
   const [structure, setStructure] = useState<Structure | null>(null);
   const [error, setError] = useState("");
@@ -114,13 +119,17 @@ export default function StructurePanel({
     <div className="structure-panel">
       <div className="section-intro">
         <div>
-          <h3>结构与关节</h3>
-          <p>选择测试模型，或导入结构站保存的配置。</p>
+          <h3>{t("结构与关节")}</h3>
+          <p>{t("选择测试模型，或导入结构站保存的配置。")}</p>
         </div>
         <button
           className="button secondary"
           disabled={locked || uploading || isPublicDemo}
-          title={isPublicDemo ? "自定义结构导入在完整本机平台使用；此页可选择公开参考模型" : undefined}
+          title={
+            isPublicDemo
+              ? t("自定义结构导入在完整本机平台使用；此页可选择公开参考模型")
+              : undefined
+          }
           onClick={() => file.current?.click()}
         >
           {uploading ? (
@@ -128,14 +137,14 @@ export default function StructurePanel({
           ) : (
             <UploadSimple size={16} />
           )}
-          {isPublicDemo ? "导入结构（本机功能）" : "导入结构"}
+          {isPublicDemo ? t("导入结构（本机功能）") : t("导入结构")}
         </button>
         <input
           ref={file}
           hidden
           type="file"
           accept=".json,.urdf,.xml"
-          aria-label="导入结构文件"
+          aria-label={t("导入结构文件")}
           onChange={(e) => {
             const selected = e.target.files?.[0];
             if (selected) void importFile(selected);
@@ -144,16 +153,16 @@ export default function StructurePanel({
       </div>
       <div className="structure-selectors">
         <label className="field">
-          <span>结构模型</span>
+          <span>{t("结构模型")}</span>
           <select
-            aria-label="结构模型"
+            aria-label={t("结构模型")}
             disabled={locked || loading || uploading}
             value={id || ""}
             onChange={(e) => {
               onChange(e.target.value || null, null);
             }}
           >
-            <option value="">还没选择结构</option>
+            <option value="">{t("还没选择结构")}</option>
             {items.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
@@ -162,16 +171,16 @@ export default function StructurePanel({
           </select>
         </label>
         <label className="field">
-          <span>{jointLabel}</span>
+          <span>{t(jointLabel)}</span>
           <select
-            aria-label={jointLabel}
+            aria-label={t(jointLabel)}
             disabled={
               locked || !structure?.joints?.some((j) => j.type !== "fixed")
             }
             value={jointName || ""}
             onChange={(e) => onChange(id, e.target.value || null)}
           >
-            <option value="">请选择关节</option>
+            <option value="">{t("请选择关节")}</option>
             {structure?.joints
               ?.filter((j) => j.type !== "fixed")
               .map((j) => (
@@ -182,23 +191,32 @@ export default function StructurePanel({
           </select>
         </label>
       </div>
-      {error && <div className="notice warning">{error}</div>}
+      {error && <div className="notice warning">{t(error)}</div>}
       {selectedJoint && (
         <div className="joint-facts">
           <strong>{selectedJoint.label || selectedJoint.name}</strong>
           <span>
-            初始姿态 {(selectedJoint.initial_position || 0).toFixed(3)} rad
+            {t("初始姿态")}
+            {(selectedJoint.initial_position || 0).toFixed(3)} rad
           </span>
           <span>
-            范围 {bounds.lower.toFixed(3)} ～ {bounds.upper.toFixed(3)} rad
+            {t("范围")}
+            {bounds.lower.toFixed(3)} ～ {bounds.upper.toFixed(3)} rad
           </span>
           <small>
             {jointLabel === "参考预览关节"
-              ? "范围来自结构模型，尚未通过实物确认。这里仅预览这一轴；完整动作在第 3 步按全部参与关节的姿势程序核对。"
-              : "范围来自结构模型，尚未通过实物确认。旧单关节任务只控制这一轴，其他轴保持配置姿态。"}
+              ? t(
+                  "范围来自结构模型，尚未通过实物确认。这里仅预览这一轴；完整动作在第 3 步按全部参与关节的姿势程序核对。",
+                )
+              : t(
+                  "范围来自结构模型，尚未通过实物确认。旧单关节任务只控制这一轴，其他轴保持配置姿态。",
+                )}
           </small>
           {selectedJoint.source_parameter && (
-            <small>来源参数：{selectedJoint.source_parameter}</small>
+            <small>
+              {t("来源参数：")}
+              {selectedJoint.source_parameter}
+            </small>
           )}
         </div>
       )}
@@ -208,7 +226,7 @@ export default function StructurePanel({
             fallback={
               <div className="viewer-placeholder">
                 <CircleNotch size={24} className="spin" />
-                正在准备 3D 查看器
+                {t("正在准备 3D 查看器")}
               </div>
             }
           >
@@ -221,7 +239,8 @@ export default function StructurePanel({
           {!!structure.warnings?.length && (
             <details className="structure-notes">
               <summary>
-                模型用途与待补信息 · {structure.warnings.length}
+                {t("模型用途与待补信息 ·")}
+                {structure.warnings.length}
               </summary>
               <ul>
                 {structure.warnings.map((x, i) => (
@@ -235,19 +254,20 @@ export default function StructurePanel({
         <div className="viewer-placeholder">
           <Cube size={25} />
           {id && !error
-            ? "正在读取结构信息…"
-            : "尚未选择结构，可以先保存，稍后再选。"}
+            ? t("正在读取结构信息…")
+            : t("尚未选择结构，可以先保存，稍后再选。")}
         </div>
       )}
       <p className="structure-help">
-        支持带关节树的 URDF 和 SophiRobot 配置
-        JSON。保存时检查关节与范围，按所选模型生成本机近似仿真；缺少必要数据时会提示，实物驱动仍需确认。
+        {t(
+          "支持带关节树的 URDF 和 SophiRobot 配置 JSON。保存时检查关节与范围，按所选模型生成本机近似仿真；缺少必要数据时会提示，实物驱动仍需确认。",
+        )}
         <a
           href="https://sophimotion.github.io/sophicore-robot-cle/"
           target="_blank"
           rel="noreferrer"
         >
-          打开结构站
+          {t("打开结构站")}
           <ArrowSquareOut size={13} />
         </a>
       </p>
@@ -255,7 +275,26 @@ export default function StructurePanel({
   );
 }
 export function StructureReplay({ run }: { run: Run }) {
-  const structure = snapshotStructure(run.spec_snapshot);
+  const { locale } = useI18n();
+
+  const structure = useMemo(
+    () => snapshotStructure(run.spec_snapshot),
+    [run.spec_snapshot],
+  );
+  const vectorSeries = useMemo(
+    () =>
+      run.spec_snapshot.task_type === "joint_sequence"
+        ? run.result?.series
+            ?.filter((point) => !!point.positions)
+            .map((point) => ({
+              time: point.t ?? point.time,
+              positions: point.positions!,
+              stage_id: point.stage_id,
+              cycle_index: point.cycle_index,
+            }))
+        : undefined,
+    [run.spec_snapshot.task_type, run.result?.series],
+  );
   const requiredJoints =
     run.result?.motion_program?.joint_names ||
     run.spec_snapshot.prd?.intake?.motion_plan?.joint_names ||
@@ -272,7 +311,7 @@ export function StructureReplay({ run }: { run: Run }) {
   )
     return (
       <div className="notice warning">
-        实际反馈没有完整覆盖每个参与关节，无法回放完整动作。
+        {t("实际反馈没有完整覆盖每个参与关节，无法回放完整动作。")}
       </div>
     );
   if (
@@ -282,7 +321,7 @@ export function StructureReplay({ run }: { run: Run }) {
   )
     return (
       <div className="notice warning">
-        缺少全组关节实际反馈，不能回放完整动作。
+        {t("缺少全组关节实际反馈，不能回放完整动作。")}
       </div>
     );
   if (
@@ -297,19 +336,23 @@ export function StructureReplay({ run }: { run: Run }) {
       <div className="section-intro">
         <h3>
           {run.spec_snapshot.task_type === "joint_sequence"
-            ? "本轮多关节实际轨迹回放"
-            : "本轮关节回放"}
+            ? t("本轮多关节实际轨迹回放")
+            : t("本轮关节回放")}
         </h3>
-        <span>使用本轮冻结模型与轨迹，不代表实物动作</span>
+        <span>{t("使用本轮冻结模型与轨迹，不代表实物动作")}</span>
       </div>
       {!structure && (
         <div className="notice">
-          这份旧记录没有保存结构快照，因此只显示原始轨迹，不替换成其他模型。
+          {t(
+            "这份旧记录没有保存结构快照，因此只显示原始轨迹，不替换成其他模型。",
+          )}
         </div>
       )}
       {structure && (
         <Suspense
-          fallback={<div className="viewer-placeholder">正在加载回放…</div>}
+          fallback={
+            <div className="viewer-placeholder">{t("正在加载回放…")}</div>
+          }
         >
           <StructureView
             structure={structure}
@@ -322,18 +365,7 @@ export function StructureReplay({ run }: { run: Run }) {
                 ? undefined
                 : run.result.series
             }
-            vectorSeries={
-              run.spec_snapshot.task_type === "joint_sequence"
-                ? run.result.series
-                    .filter((point) => !!point.positions)
-                    .map((point) => ({
-                      time: point.t ?? point.time,
-                      positions: point.positions!,
-                      stage_id: point.stage_id,
-                      cycle_index: point.cycle_index,
-                    }))
-                : undefined
-            }
+            vectorSeries={vectorSeries}
           />
         </Suspense>
       )}

@@ -1,3 +1,5 @@
+import { useI18n } from "./i18n";
+import { motionIssueText } from "./i18nMotionDetails";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   api,
@@ -28,6 +30,8 @@ type Props = {
   sourceStale?: boolean;
 };
 const degrees = (value: number) => Number(((value * 180) / Math.PI).toFixed(3));
+const segmentError =
+  "请选择包含一个完整往返的闭合 A → B → A 区段和 2～20 次执行；不能截断现有编号组或合并多个编号组。";
 export default function MotionPlanEditor({
   plan,
   structure,
@@ -40,6 +44,7 @@ export default function MotionPlanEditor({
   provenance,
   sourceStale,
 }: Props) {
+  const { t } = useI18n();
   const [recipe, setRecipe] = useState<{
     value: MotionRecipe;
     key: string;
@@ -123,33 +128,40 @@ export default function MotionPlanEditor({
       className="action-draft-card motion-plan-card"
       data-intake-path="prd.intake.motion_plan"
       tabIndex={-1}
-      aria-label="多关节可执行姿势程序"
+      aria-label={t("多关节可执行姿势程序")}
     >
       <div className="action-draft-title">
         <div>
-          <span className="origin-tag">本机参考仿真 · V5</span>
-          <h4>{summary ? "将执行的完整动作" : "把整套动作变成逐关节姿势"}</h4>
+          <span className="origin-tag">{t("本机参考仿真 · V5")}</span>
+          <h4>
+            {summary ? t("将执行的完整动作") : t("把整套动作变成逐关节姿势")}
+          </h4>
         </div>
         <span>
           {plan
             ? plan.reviewed
-              ? "已人工核对"
-              : "需要人工核对"
-            : "建议尚未采用"}
+              ? t("已人工核对")
+              : t("需要人工核对")
+            : t("建议尚未采用")}
         </span>
       </div>
       <p>
-        每行是一个完整姿势：所有参与关节同时运动到这一行角度。累计时间从动作开始计时；相同姿势可以用来停留。往返必须有明确端点，最后一行是结束姿势。阶段代号只使用英文字母、数字、下划线或短横线，如
-        prepare、wave_a、finish。
+        {t(
+          "每行是一个完整姿势：所有参与关节同时运动到这一行角度。累计时间从动作开始计时；相同姿势可以用来停留。往返必须有明确端点，最后一行是结束姿势。阶段代号只使用英文字母、数字、下划线或短横线，如 prepare、wave_a、finish。",
+        )}
       </p>
       {!summary && (
         <>
           {plan && (
             <div className="notice warning">
               <div>
-                <strong>更换模型或左右手臂时，先明确清除当前执行程序</strong>
+                <strong>
+                  {t("更换模型或左右手臂时，先明确清除当前执行程序")}
+                </strong>
                 <p>
-                  原始需求、动作草稿、补充要求和已保留的来源历史继续保留；重新查看并采用参考配方后再人工核对。
+                  {t(
+                    "原始需求、动作草稿、补充要求和已保留的来源历史继续保留；重新查看并采用参考配方后再人工核对。",
+                  )}
                 </p>
                 {clearPending ? (
                   <>
@@ -164,14 +176,14 @@ export default function MotionPlanEditor({
                         onChange(null);
                       }}
                     >
-                      确认清除当前执行程序，保留原始需求
+                      {t("确认清除当前执行程序，保留原始需求")}
                     </button>
                     <button
                       type="button"
                       className="text-button"
                       onClick={() => setClearPending(false)}
                     >
-                      取消清除
+                      {t("取消清除")}
                     </button>
                   </>
                 ) : (
@@ -181,7 +193,7 @@ export default function MotionPlanEditor({
                     disabled={disabled || busy}
                     onClick={() => setClearPending(true)}
                   >
-                    清除执行程序后重新选择配方
+                    {t("清除执行程序后重新选择配方")}
                   </button>
                 )}
               </div>
@@ -197,14 +209,14 @@ export default function MotionPlanEditor({
                 setClearedPlan(null);
               }}
             >
-              撤销清除，恢复上一套执行程序（需重新核对）
+              {t("撤销清除，恢复上一套执行程序（需重新核对）")}
             </button>
           )}
           <div className="guide-fields">
             <label className="field">
-              <span>参考动作</span>
+              <span>{t("参考动作")}</span>
               <select
-                aria-label="参考手臂"
+                aria-label={t("参考手臂")}
                 disabled={disabled || busy}
                 value={side}
                 onChange={(e) => {
@@ -212,14 +224,14 @@ export default function MotionPlanEditor({
                   setRecipe(null);
                 }}
               >
-                <option value="right">右臂抬起、招手、放下</option>
-                <option value="left">左臂抬起、招手、放下</option>
+                <option value="right">{t("右臂抬起、招手、放下")}</option>
+                <option value="left">{t("左臂抬起、招手、放下")}</option>
               </select>
             </label>
             <label className="field">
-              <span>参考招手次数</span>
+              <span>{t("参考招手次数")}</span>
               <input
-                aria-label="参考招手次数"
+                aria-label={t("参考招手次数")}
                 type="number"
                 min={1}
                 max={10}
@@ -247,7 +259,9 @@ export default function MotionPlanEditor({
             }
             onClick={() => void recommend()}
           >
-            {busy ? "正在读取模型动作配方…" : "查看 Sophicore 参考姿势建议"}
+            {busy
+              ? t("正在读取模型动作配方…")
+              : t("查看 Sophicore 参考姿势建议")}
           </button>
           {busy && (
             <button
@@ -259,17 +273,23 @@ export default function MotionPlanEditor({
                 setRecipe(null);
               }}
             >
-              取消建议
+              {t("取消建议")}
             </button>
           )}
           {!structure && (
             <p className="field-hint">
-              先在第 2 步选择 Sophicore 参考模型，再查看该模型的姿势与范围。
+              {t(
+                "先在第 2 步选择 Sophicore 参考模型，再查看该模型的姿势与范围。",
+              )}
             </p>
           )}
         </>
       )}
-      {error && <p className="notice warning">{error}</p>}
+      {error && (
+        <p className="notice warning">
+          {error === segmentError ? t(segmentError) : error}
+        </p>
+      )}
       {recipe?.key === currentKey && (
         <div className="notice">
           <div>
@@ -278,12 +298,14 @@ export default function MotionPlanEditor({
               <p key={i}>{note}</p>
             ))}
             <details>
-              <summary>推荐来源与模型依据</summary>
+              <summary>{t("推荐来源与模型依据")}</summary>
               <pre>{printable(recipe.value.source)}</pre>
             </details>
             {plan ? (
               <p>
-                已有姿势程序保留。要比较新建议，请核对来源；不会覆盖你的角度和时间。
+                {t(
+                  "已有姿势程序保留。要比较新建议，请核对来源；不会覆盖你的角度和时间。",
+                )}
               </p>
             ) : (
               <button
@@ -299,7 +321,7 @@ export default function MotionPlanEditor({
                       })
                 }
               >
-                采用这套参考姿势，随后人工核对
+                {t("采用这套参考姿势，随后人工核对")}
               </button>
             )}
           </div>
@@ -311,19 +333,23 @@ export default function MotionPlanEditor({
             <details className="source-details">
               <summary>
                 {sourceStale
-                  ? "先前参考姿势来源，需要重新核对"
-                  : "已采用姿势的来源与请求记录"}
+                  ? t("先前参考姿势来源，需要重新核对")
+                  : t("已采用姿势的来源与请求记录")}
               </summary>
               <p>{source.reason}</p>
-              <p>当时原话：{source.basis.request_text}</p>
+              <p>
+                {t("当时原话：")}
+                {source.basis.request_text}
+              </p>
               {provenance && (
                 <>
                   <p>
-                    工具：{provenance.tool} · {provenance.model}
+                    {t("工具：")}
+                    {provenance.tool} · {provenance.model}
                   </p>
                   <pre>{provenance.prompt}</pre>
                   <details>
-                    <summary>真实参考接口响应</summary>
+                    <summary>{t("真实参考接口响应")}</summary>
                     <pre>{provenance.response}</pre>
                   </details>
                 </>
@@ -331,32 +357,35 @@ export default function MotionPlanEditor({
             </details>
           )}
           <p className="field-hint">
-            姿势来源：
+            {t("姿势来源：")}
             {shown.recipe_id === "custom"
-              ? "用户编辑的程序；参考配方数值已变化，需重新核对"
+              ? t("用户编辑的程序；参考配方数值已变化，需重新核对")
               : shown.recipe_id}{" "}
-            · 配置摘要 {shown.model_source_sha256.slice(0, 16)}
-            。模型限位只用于本机检查，实物零位与负载未确认。
+            {t("· 配置摘要")}
+            {shown.model_source_sha256.slice(0, 16)}
+            {t("。模型限位只用于本机检查，实物零位与负载未确认。")}
           </p>
           {!summary && structure && !!shown.waypoints.length && (
             <details className="source-details">
-              <summary>在 3D 中核对每个完整目标姿势（预览）</summary>
+              <summary>{t("在 3D 中核对每个完整目标姿势（预览）")}</summary>
               <label className="field">
-                <span>查看哪一行姿势</span>
+                <span>{t("查看哪一行姿势")}</span>
                 <select
-                  aria-label="完整目标姿势预览"
+                  aria-label={t("完整目标姿势预览")}
                   value={Math.min(poseIndex, shown.waypoints.length - 1)}
                   onChange={(e) => setPoseIndex(Number(e.target.value))}
                 >
                   {shown.waypoints.map((row, index) => (
                     <option key={index} value={index}>
-                      第 {index + 1} 行 · {row.stage_id} · 往返{" "}
-                      {row.cycle_index}
+                      {t(
+                        `第 ${index + 1} 行 · ${row.stage_id} · 往返 ${row.cycle_index}`,
+                        `Row ${index + 1} · ${row.stage_id} · cycle ${row.cycle_index}`,
+                      )}
                     </option>
                   ))}
                 </select>
               </label>
-              <Suspense fallback={<p>正在准备目标姿势预览…</p>}>
+              <Suspense fallback={<p>{t("正在准备目标姿势预览…")}</p>}>
                 <StructureView
                   structure={structure}
                   previewPositions={Object.fromEntries(
@@ -375,8 +404,8 @@ export default function MotionPlanEditor({
             <table className="motion-table">
               <thead>
                 <tr>
-                  <th>阶段 / 往返编号</th>
-                  <th>累计时间 (s)</th>
+                  <th>{t("阶段 / 往返编号")}</th>
+                  <th>{t("累计时间 (s)")}</th>
                   {shown.joint_names.map((name) => (
                     <th key={name}>
                       {structure?.joints.find((j) => j.name === name)?.label ||
@@ -384,7 +413,7 @@ export default function MotionPlanEditor({
                       <small>{name}</small>
                     </th>
                   ))}
-                  {plan && !summary && <th>编辑顺序</th>}
+                  {plan && !summary && <th>{t("编辑顺序")}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -394,7 +423,10 @@ export default function MotionPlanEditor({
                       {plan && !summary ? (
                         <>
                           <input
-                            aria-label={`姿势${index + 1}阶段`}
+                            aria-label={t(
+                              `姿势${index + 1}阶段`,
+                              `Pose ${index + 1} stage`,
+                            )}
                             disabled={disabled}
                             value={row.stage_id}
                             onChange={(e) =>
@@ -405,7 +437,10 @@ export default function MotionPlanEditor({
                             type="number"
                             min={0}
                             step={1}
-                            aria-label={`姿势${index + 1}往返编号`}
+                            aria-label={t(
+                              `姿势${index + 1}往返编号`,
+                              `Pose ${index + 1} cycle ID`,
+                            )}
                             disabled={disabled}
                             value={row.cycle_index}
                             onChange={(e) =>
@@ -428,7 +463,10 @@ export default function MotionPlanEditor({
                           type="number"
                           min={0}
                           step="0.1"
-                          aria-label={`姿势${index + 1}累计时间`}
+                          aria-label={t(
+                            `姿势${index + 1}累计时间`,
+                            `Pose ${index + 1} elapsed time`,
+                          )}
                           disabled={disabled}
                           value={row.time_from_start_s}
                           onChange={(e) =>
@@ -456,7 +494,10 @@ export default function MotionPlanEditor({
                             <input
                               type="number"
                               step="0.1"
-                              aria-label={`姿势${index + 1} ${name}角度`}
+                              aria-label={t(
+                                `姿势${index + 1} ${name}角度`,
+                                `Pose ${index + 1} ${name} angle`,
+                              )}
                               disabled={disabled}
                               value={degrees(row.positions[j])}
                               onChange={(e) =>
@@ -478,9 +519,10 @@ export default function MotionPlanEditor({
                             `${degrees(row.positions[j])}°`
                           )}
                           <small>
-                            范围{" "}
-                            {lower == null ? "待确认" : degrees(lower) + "°"} ～{" "}
-                            {upper == null ? "待确认" : degrees(upper) + "°"}
+                            {t("范围")}{" "}
+                            {lower == null ? t("待确认") : degrees(lower) + "°"}{" "}
+                            ～{" "}
+                            {upper == null ? t("待确认") : degrees(upper) + "°"}
                           </small>
                         </td>
                       );
@@ -491,7 +533,10 @@ export default function MotionPlanEditor({
                           type="button"
                           className="text-button"
                           disabled={disabled || index === 0}
-                          aria-label={`上移姿势${index + 1}`}
+                          aria-label={t(
+                            `上移姿势${index + 1}`,
+                            `Move pose ${index + 1} up`,
+                          )}
                           onClick={() => {
                             const rows = structuredClone(plan.waypoints);
                             const previousTime =
@@ -506,13 +551,16 @@ export default function MotionPlanEditor({
                             patch({ waypoints: rows });
                           }}
                         >
-                          上移
+                          {t("上移")}
                         </button>
                         <button
                           type="button"
                           className="text-button"
                           disabled={disabled || plan.waypoints.length <= 1}
-                          aria-label={`删除姿势${index + 1}`}
+                          aria-label={t(
+                            `删除姿势${index + 1}`,
+                            `Delete pose ${index + 1}`,
+                          )}
                           onClick={() =>
                             patch({
                               waypoints: plan.waypoints.filter(
@@ -521,7 +569,7 @@ export default function MotionPlanEditor({
                             })
                           }
                         >
-                          删除
+                          {t("删除")}
                         </button>
                       </td>
                     )}
@@ -533,20 +581,22 @@ export default function MotionPlanEditor({
           {plan && !summary && (
             <>
               <details className="source-details">
-                <summary>调整参与关节（每行都要包含这些关节）</summary>
+                <summary>{t("调整参与关节（每行都要包含这些关节）")}</summary>
                 <p>
-                  新增关节必须明确填写一个角度，暂时将这一角度应用到所有行，再逐行调整。不会猜测实物零位。
+                  {t(
+                    "新增关节必须明确填写一个角度，暂时将这一角度应用到所有行，再逐行调整。不会猜测实物零位。",
+                  )}
                 </p>
                 <div className="guide-fields">
                   <label className="field">
-                    <span>新增关节</span>
+                    <span>{t("新增关节")}</span>
                     <select
-                      aria-label="新增程序关节"
+                      aria-label={t("新增程序关节")}
                       disabled={disabled}
                       value={newJoint}
                       onChange={(e) => setNewJoint(e.target.value)}
                     >
-                      <option value="">请选择</option>
+                      <option value="">{t("请选择")}</option>
                       {structure?.joints
                         .filter(
                           (joint) =>
@@ -561,9 +611,9 @@ export default function MotionPlanEditor({
                     </select>
                   </label>
                   <label className="field">
-                    <span>各行初始填写角度 (°)</span>
+                    <span>{t("各行初始填写角度 (°)")}</span>
                     <input
-                      aria-label="新增关节各行角度"
+                      aria-label={t("新增关节各行角度")}
                       disabled={disabled}
                       type="number"
                       step="any"
@@ -596,7 +646,7 @@ export default function MotionPlanEditor({
                     setNewAngle("");
                   }}
                 >
-                  将该关节加入全部姿势
+                  {t("将该关节加入全部姿势")}
                 </button>
                 <ul>
                   {plan.joint_names.map((name, index) => (
@@ -606,7 +656,10 @@ export default function MotionPlanEditor({
                         type="button"
                         className="text-button"
                         disabled={disabled || plan.joint_names.length <= 1}
-                        aria-label={`移除程序关节 ${name}`}
+                        aria-label={t(
+                          `移除程序关节 ${name}`,
+                          `Remove program joint ${name}`,
+                        )}
                         onClick={() =>
                           patch({
                             joint_names: plan.joint_names.filter(
@@ -621,7 +674,7 @@ export default function MotionPlanEditor({
                           })
                         }
                       >
-                        从程序移除（原始需求保留）
+                        {t("从程序移除（原始需求保留）")}
                       </button>
                     </li>
                   ))}
@@ -646,21 +699,22 @@ export default function MotionPlanEditor({
                   });
                 }}
               >
-                在末尾增加姿势（复制上一行供修改）
+                {t("在末尾增加姿势（复制上一行供修改）")}
               </button>
               <details className="source-details">
-                <summary>自定义往返：重复已闭合的姿势区段</summary>
+                <summary>{t("自定义往返：重复已闭合的姿势区段")}</summary>
                 <p>
-                  从 A 经 B 回 A 才是一次完整往返。选择起止行（从 1
-                  计数），两端角度必须一致，不能截断现有往返组。所选区段作为一次往返；前后动作全部保留并按完整程序重新编号。累计时间与超时同步增加，请逐行核对。
+                  {t(
+                    "从 A 经 B 回 A 才是一次完整往返。选择起止行（从 1 计数），两端角度必须一致，不能截断现有往返组。所选区段作为一次往返；前后动作全部保留并按完整程序重新编号。累计时间与超时同步增加，请逐行核对。",
+                  )}
                 </p>
                 <div className="guide-fields">
                   {[
-                    ["开始行", start + 1, (v: number) => setStart(v - 1)],
-                    ["结束行", end + 1, (v: number) => setEnd(v - 1)],
-                    ["所选区段执行次数", rounds, setRounds],
-                  ].map(([label, value, setter]) => (
-                    <label className="field" key={String(label)}>
+                    [t("开始行"), start + 1, (v: number) => setStart(v - 1)],
+                    [t("结束行"), end + 1, (v: number) => setEnd(v - 1)],
+                    [t("所选区段执行次数"), rounds, setRounds],
+                  ].map(([label, value, setter], rowIndex) => (
+                    <label className="field" key={rowIndex}>
                       <span>{String(label)}</span>
                       <input
                         aria-label={String(label)}
@@ -680,10 +734,10 @@ export default function MotionPlanEditor({
                 </div>
                 {repeatPreview && (
                   <p className="notice">
-                    所选区段将执行 {rounds} 次；整套程序约定的往返组从{" "}
-                    {motionCycleCount(plan)} 次变为{" "}
-                    {motionCycleCount(repeatPreview)}{" "}
-                    次，前后其他动作保留。原始动作草稿的次数与原话保持原样；如有不同，也需要重新核对，后台会检查冲突。
+                    {t(
+                      `所选区段将执行 ${rounds} 次；整套程序约定的往返组从 ${motionCycleCount(plan)} 次变为 ${motionCycleCount(repeatPreview)} 次，前后其他动作保留。原始动作草稿的次数与原话保持原样；如有不同，也需要重新核对，后台会检查冲突。`,
+                      `The selected segment will run ${rounds} times; total program cycles change from ${motionCycleCount(plan)} to ${motionCycleCount(repeatPreview)}. Actions before and after the segment remain. The original action draft’s count and wording stay unchanged. Review any differences; the backend checks for conflicts.`,
+                    )}
                   </p>
                 )}
                 <button
@@ -695,15 +749,15 @@ export default function MotionPlanEditor({
                     if (expanded) {
                       setError("");
                       onChange(expanded);
-                    } else
-                      setError(
-                        "请选择包含一个完整往返的闭合 A → B → A 区段和 2～20 次执行；不能截断现有编号组或合并多个编号组。",
-                      );
+                    } else setError(segmentError);
                   }}
                 >
                   {repeatPreview
-                    ? `展开所选区段（整套 ${motionCycleCount(repeatPreview)} 次）并重新核对`
-                    : "先选择一个完整闭合往返区段"}
+                    ? t(
+                        `展开所选区段（整套 ${motionCycleCount(repeatPreview)} 次）并重新核对`,
+                        `Expand the segment (${motionCycleCount(repeatPreview)} total cycles) and review again`,
+                      )
+                    : t("先选择一个完整闭合往返区段")}
                 </button>
               </details>
             </>
@@ -711,10 +765,10 @@ export default function MotionPlanEditor({
           <div className="guide-fields">
             {(
               [
-                ["tolerance_rad", "到位允许误差", "rad"],
-                ["max_velocity_rad_s", "最大角速度", "rad/s"],
-                ["max_acceleration_rad_s2", "最大角加速度", "rad/s²"],
-                ["timeout_s", "整套动作超时", "s"],
+                ["tolerance_rad", t("到位允许误差"), "rad"],
+                ["max_velocity_rad_s", t("最大角速度"), "rad/s"],
+                ["max_acceleration_rad_s2", t("最大角加速度"), "rad/s²"],
+                ["timeout_s", t("整套动作超时"), "s"],
               ] as const
             ).map(([key, label, unit]) => (
               <label
@@ -747,7 +801,7 @@ export default function MotionPlanEditor({
             <div className="notice warning">
               <ul>
                 {issues.map((message) => (
-                  <li key={message}>{message}</li>
+                  <li key={message}>{motionIssueText(message, t)}</li>
                 ))}
               </ul>
             </div>
@@ -759,7 +813,7 @@ export default function MotionPlanEditor({
             >
               <input
                 type="checkbox"
-                aria-label="已人工核对完整姿势程序"
+                aria-label={t("已人工核对完整姿势程序")}
                 disabled={disabled || !!issues.length || !request.trim()}
                 checked={plan.reviewed}
                 onChange={(e) =>
@@ -767,7 +821,9 @@ export default function MotionPlanEditor({
                 }
               />
               <span>
-                我已核对全部参与关节、逐阶段角度、往返次数、最后姿势与时间限位。这些值只用于本机参考仿真。原话、模型或参数修改后需要重新核对。
+                {t(
+                  "我已核对全部参与关节、逐阶段角度、往返次数、最后姿势与时间限位。这些值只用于本机参考仿真。原话、模型或参数修改后需要重新核对。",
+                )}
               </span>
             </label>
           )}
@@ -775,8 +831,9 @@ export default function MotionPlanEditor({
       )}
       {summary && !shown && (
         <p>
-          尚未采用完整姿势程序。第 3
-          步可以查看模型参考建议；保存需求草稿与采用执行程序是两个操作。
+          {t(
+            "尚未采用完整姿势程序。第 3 步可以查看模型参考建议；保存需求草稿与采用执行程序是两个操作。",
+          )}
         </p>
       )}
     </section>

@@ -1,3 +1,6 @@
+import { t } from "./localeStore";
+import { useI18n } from "./i18n";
+import "./i18nRequirements";
 export type GuideOption = {
   value: string;
   label: string;
@@ -18,10 +21,11 @@ export default function GuideOptions({
   disabled: boolean;
   onChange: (value: string | null) => void;
 }) {
+  useI18n();
   return (
     <div className="guide-choice-field">
-      <span className="guide-choice-label">{label}</span>
-      <div className="guide-choice-list" role="group" aria-label={label}>
+      <span className="guide-choice-label">{t(label)}</span>
+      <div className="guide-choice-list" role="group" aria-label={t(label)}>
         {options.map((option) => (
           <button
             key={option.value}
@@ -32,16 +36,16 @@ export default function GuideOptions({
             onClick={() => onChange(option.value)}
           >
             <span className="guide-choice-heading">
-              <strong>{option.label}</strong>
+              <strong>{t(option.label)}</strong>
               {option.recommended && (
-                <small className="choice-recommended">推荐</small>
+                <small className="choice-recommended">{t("推荐")}</small>
               )}
             </span>
             <span className="guide-choice-description">
-              {option.description}
+              {t(option.description)}
             </span>
             {value === option.value && (
-              <span className="choice-current">已选</span>
+              <span className="choice-current">{t("已选")}</span>
             )}
           </button>
         ))}
@@ -52,11 +56,13 @@ export default function GuideOptions({
           disabled={disabled}
           onClick={() => onChange(null)}
         >
-          <strong>还不确定</strong>
+          <strong>{t("还不确定")}</strong>
           <span className="guide-choice-description">
-            先留待确认，之后再补。
+            {t("先留待确认，之后再补。")}
           </span>
-          {value === null && <span className="choice-current">已选</span>}
+          {value === null && (
+            <span className="choice-current">{t("已选")}</span>
+          )}
         </button>
       </div>
     </div>

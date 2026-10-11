@@ -6,6 +6,11 @@
 - [GitHub Pages 完整工作台体验版](https://sophimotion.github.io/AE/)，
 - [项目说明页](https://sophimotion.github.io/AE/guide.html)。仓库 main 分支的 docs 目录为发布来源。
 分享版复用完整工作台界面，支持五步 PRD、流程图、参考动作编辑、公开资料筛选和已有本机验收记录。因为环境未部署原因所以GitHub分享版不会在线生成、编译或运行 ROS。
+
+工作台右上角可选择 **中文 / English**，本机版与分享版使用同一套界面语言设置。语言偏好自动保存在当前浏览器；切换语言保留当前填写内容和流程位置。用户需求、工程名称、资料正文、生成代码和原始日志保留原文，切换界面语言不会翻译或改写这些内容。
+
+Use **中文 / English** in the top-right corner to switch the workbench interface. The preference is saved in your browser. Switching preserves your draft and workflow position; original requirements, project names, source material, generated code and logs remain unchanged.
+
  操作流程
 
 text

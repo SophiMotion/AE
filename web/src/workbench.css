@@ -4777,3 +4777,13 @@ button:active:not(:disabled), .button:active { transform: translateY(1px); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } button:active:not(:disabled), .button:active { transform: none; } }
 @media (prefers-reduced-transparency: reduce) { .app-header { background: var(--panel); backdrop-filter: none; -webkit-backdrop-filter: none; } }
 @media (prefers-contrast: more) { :root { --line: #798598; --line-strong: #4b5565; --muted: #343a43; } .app-header { background: var(--panel); backdrop-filter: none; } .workflow-step.selected, .guide-choice.selected { outline: 2px solid var(--accent); outline-offset: 1px; } }
+
+/* Language preference is available in both runtime modes and on small screens. */
+.language-switch { flex: 0 0 auto; margin-left: 0; }
+.language-switch select { width: 106px; min-height: 38px; padding: 8px 10px; font-size: 13px; background: var(--panel); color: var(--text); }
+@media (min-width: 761px) and (max-width: 1050px) { .app-header { gap: 12px; } .app-header .connection { display: none; } .language-switch { margin-left: auto; } }
+@media (max-width: 760px) { .language-switch select { width: 88px; padding: 8px 6px; font-size: 12px; } .app-header .brand b { font-size: 12px; } }
+@media (max-width: 370px) { .app-header .brand b, .app-header .brand > span { display: none; } }
+html[lang="en"] .workflow-step-label { min-width: 0; overflow-wrap: anywhere; }
+html[lang="en"] .button { white-space: normal; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }

@@ -1,3 +1,6 @@
+import { useI18n } from "./i18n";
+import { t } from "./localeStore.ts";
+import "./i18nPanels";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowSquareOut,
@@ -29,6 +32,7 @@ interface Evaluation {
   notice: string;
 }
 export default function Library({ project }: { project: Project | null }) {
+  useI18n();
   const [query, setQuery] = useState("");
   const [task, setTask] = useState("");
   const [board, setBoard] = useState("");
@@ -121,31 +125,41 @@ export default function Library({ project }: { project: Project | null }) {
     <div className="library-page">
       <header className="page-heading">
         <div>
-          <h1>资料库</h1>
-          <p>{isPublicDemo ? "浏览与筛选公开参考资料；本机平台的 RAG 会在生成前检索适用资料。" : "把适用板型、版本和来源一起交给 AI。"}</p>
+          <h1>{t("资料库")}</h1>
+          <p>
+            {isPublicDemo
+              ? t(
+                  "浏览与筛选公开参考资料；本机平台的 RAG 会在生成前检索适用资料。",
+                )
+              : t("把适用板型、版本和来源一起交给 AI。")}
+          </p>
         </div>
         <div className="heading-actions">
           <button
             className="button secondary"
             onClick={() => void evaluate()}
             disabled={evaluating || isPublicDemo}
-            title={isPublicDemo ? "完整本机平台会运行检索评估；此分享版提供公开资料筛选" : undefined}
+            title={
+              isPublicDemo
+                ? t("完整本机平台会运行检索评估；此分享版提供公开资料筛选")
+                : undefined
+            }
           >
             {evaluating ? (
               <CircleNotch size={17} className="spin" />
             ) : (
               <Flask size={17} />
             )}
-            {isPublicDemo ? "检索评估（本机功能）" : "检查检索效果"}
+            {isPublicDemo ? t("检索评估（本机功能）") : t("检查检索效果")}
           </button>
           <button
             className="button primary"
             disabled={isPublicDemo}
-            title={isPublicDemo ? "资料导入在完整本机平台进行" : undefined}
+            title={isPublicDemo ? t("资料导入在完整本机平台进行") : undefined}
             onClick={() => setShowImport(!showImport)}
           >
             <UploadSimple size={17} />
-            {isPublicDemo ? "导入资料（本机功能）" : "导入资料"}
+            {isPublicDemo ? t("导入资料（本机功能）") : t("导入资料")}
           </button>
         </div>
       </header>
@@ -164,78 +178,84 @@ export default function Library({ project }: { project: Project | null }) {
         <div className="knowledge-overview">
           <BookOpenText size={22} />
           <div>
-            <strong>{isPublicDemo ? "公开参考资料与已有检索记录" : "本机资料与检索记录"}</strong>
+            <strong>
+              {isPublicDemo
+                ? t("公开参考资料与已有检索记录")
+                : t("本机资料与检索记录")}
+            </strong>
             <p>{statsText(stats)}</p>
           </div>
           <details>
-            <summary>查看索引信息</summary>
+            <summary>{t("查看索引信息")}</summary>
             <pre>{printable(stats)}</pre>
           </details>
         </div>
       )}
       <div className="library-toolbar">
         <select
-          aria-label="按资料来源筛选"
+          aria-label={t("按资料来源筛选")}
           value={origin}
           onChange={(e) => setOrigin(e.target.value)}
         >
-          <option value="all">全部来源</option>
-          <option value="experience">已核对的运行经验</option>
-          <option value="builtin">内置资料</option>
-          <option value="upload">上传资料</option>
+          <option value="all">{t("全部来源")}</option>
+          <option value="experience">{t("已核对的运行经验")}</option>
+          <option value="builtin">{t("内置资料")}</option>
+          <option value="upload">{t("上传资料")}</option>
         </select>
         <label className="search">
           <MagnifyingGlass size={18} />
           <input
-            aria-label="搜索资料"
-            placeholder="搜索串口、失联停车、ESP32…"
+            aria-label={t("搜索资料")}
+            placeholder={t("搜索串口、失联停车、ESP32…")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </label>
         <select
-          aria-label="按任务筛选资料"
+          aria-label={t("按任务筛选资料")}
           value={task}
           onChange={(e) => setTask(e.target.value)}
         >
-          <option value="">全部任务</option>
-          <option value="joint_position">关节位置</option>
-          <option value="sensor_threshold">传感器阈值</option>
+          <option value="">{t("全部任务")}</option>
+          <option value="joint_position">{t("关节位置")}</option>
+          <option value="sensor_threshold">{t("传感器阈值")}</option>
         </select>
         <select
-          aria-label="按板型筛选资料"
+          aria-label={t("按板型筛选资料")}
           value={board}
           onChange={(e) => setBoard(e.target.value)}
         >
-          <option value="">全部板型</option>
+          <option value="">{t("全部板型")}</option>
           <option value="esp32">ESP32</option>
           <option value="esp32s3">ESP32-S3</option>
         </select>
         <select
-          aria-label="按 ROS 版本筛选资料"
+          aria-label={t("按 ROS 版本筛选资料")}
           value={rosFilter}
           onChange={(e) => setRosFilter(e.target.value)}
         >
-          <option value="any">全部 ROS 版本</option>
+          <option value="any">{t("全部 ROS 版本")}</option>
           <option value="humble">Humble</option>
           <option value="jazzy">Jazzy</option>
           <option value="lyrical">Lyrical</option>
-          <option value="not_applicable">不涉及 ROS</option>
-          <option value="unknown">版本未核对</option>
+          <option value="not_applicable">{t("不涉及 ROS")}</option>
+          <option value="unknown">{t("版本未核对")}</option>
         </select>
       </div>
       <div className="notice">
         <BookOpenText size={19} />
         <span>
-          生成程序前，后台会查适用的资料。没有明确版本的资料可供浏览，是否用于生成以检索记录为准。
+          {t(
+            "生成程序前，后台会查适用的资料。没有明确版本的资料可供浏览，是否用于生成以检索记录为准。",
+          )}
         </span>
       </div>
       {message && (
         <div className="notice success library-message">
-          {message}
+          {t(message)}
           <button
             className="icon-button"
-            aria-label="关闭资料提示"
+            aria-label={t("关闭资料提示")}
             onClick={() => setMessage("")}
           >
             <X size={15} />
@@ -246,7 +266,7 @@ export default function Library({ project }: { project: Project | null }) {
       {detailBusy && (
         <div className="notice">
           <CircleNotch className="spin" size={18} />
-          正在读取原文…
+          {t("正在读取原文…")}
         </div>
       )}
       {detail && (
@@ -258,7 +278,7 @@ export default function Library({ project }: { project: Project | null }) {
             </div>
             <button
               className="icon-button"
-              aria-label="关闭资料原文"
+              aria-label={t("关闭资料原文")}
               onClick={() => setDetail(null)}
             >
               <X size={20} />
@@ -267,9 +287,9 @@ export default function Library({ project }: { project: Project | null }) {
           <div className="document-pages">
             {detail.document.origin === "experience" && (
               <p className="field-hint">
-                这份经验由工具整理运行结果；其中程序摘录来自原运行的 AI
-                源码，已单独标注。工具、提示词与完整回答保留在原运行的“AI
-                记录”中。
+                {t(
+                  "这份经验由工具整理运行结果；其中程序摘录来自原运行的 AI 源码，已单独标注。工具、提示词与完整回答保留在原运行的“AI 记录”中。",
+                )}
               </p>
             )}
             {detail.pages.map((page, index) => (
@@ -277,9 +297,9 @@ export default function Library({ project }: { project: Project | null }) {
                 <summary>
                   {page.page == null
                     ? detail.document.origin === "experience"
-                      ? "经验摘要与程序摘录"
-                      : "原始文本"
-                    : `第 ${page.page} 页`}
+                      ? t("经验摘要与程序摘录")
+                      : t("原始文本")
+                    : t(`第 ${page.page} 页`, `Page ${page.page}`)}
                 </summary>
                 {detail.document.origin === "experience" ? (
                   <ExperienceText text={page.text} />
@@ -289,7 +309,7 @@ export default function Library({ project }: { project: Project | null }) {
               </details>
             ))}
             <details>
-              <summary>适用范围和来源记录</summary>
+              <summary>{t("适用范围和来源记录")}</summary>
               <pre>
                 {printable({
                   ...documentMetadata(detail.document),
@@ -305,16 +325,16 @@ export default function Library({ project }: { project: Project | null }) {
         <div className="evaluation-result">
           <div className="section-intro">
             <div>
-              <h3>检索检查结果</h3>
+              <h3>{t("检索检查结果")}</h3>
               <p>
-                {evaluation.passed} / {evaluation.total} 个问题检索通过，
+                {evaluation.passed} / {evaluation.total} {t("个问题检索通过，")}
                 {evaluation.failed}{" "}
-                个未通过。此检查只验证能否找到资料，不验证生成代码。
+                {t("个未通过。此检查只验证能否找到资料，不验证生成代码。")}
               </p>
             </div>
           </div>
           <details>
-            <summary>查看测试问题与结果</summary>
+            <summary>{t("查看测试问题与结果")}</summary>
             <div className="retrieval-cases">
               {evaluation.results?.map((item) => (
                 <div key={item.id}>
@@ -322,19 +342,22 @@ export default function Library({ project }: { project: Project | null }) {
                     {item.query}
                     <small>
                       {item.expect_empty
-                        ? "预期不使用不匹配资料"
-                        : `要求命中 ${item.expected_ids.length} 份指定资料`}
+                        ? t("预期不使用不匹配资料")
+                        : t(
+                            `要求命中 ${item.expected_ids.length} 份指定资料`,
+                            `Must retrieve ${item.expected_ids.length} specified references`,
+                          )}
                     </small>
                   </span>
                   <strong className={item.passed ? "good-text" : "bad-text"}>
-                    {item.passed ? "通过" : "未通过"}
+                    {item.passed ? t("通过") : t("未通过")}
                   </strong>
                 </div>
               ))}
             </div>
           </details>
           <details className="retrieval-raw">
-            <summary>原始评测记录</summary>
+            <summary>{t("原始评测记录")}</summary>
             <pre>{printable(evaluation)}</pre>
           </details>
         </div>
@@ -372,7 +395,7 @@ export default function Library({ project }: { project: Project | null }) {
                         }
                       }}
                     >
-                      查看完整内容
+                      {t("查看完整内容")}
                     </button>
                     {/^https?:\/\//.test(item.url) ? (
                       <a
@@ -381,21 +404,24 @@ export default function Library({ project }: { project: Project | null }) {
                         rel="noreferrer"
                         className="button secondary"
                       >
-                        查看原文
+                        {t("查看原文")}
                         <ArrowSquareOut size={16} />
                       </a>
                     ) : (
                       <span className="local-source">
                         {item.url?.startsWith("project://")
-                          ? "本项目约定，见核对页"
-                          : "本机导入资料"}
+                          ? t("本项目约定，见核对页")
+                          : t("本机导入资料")}
                       </span>
                     )}
                     {(item.uploaded || item.origin === "experience") &&
                       item.document_id && (
                         <button
                           className="icon-button"
-                          aria-label={`删除资料 ${item.title}`}
+                          aria-label={t(
+                            `删除资料 ${item.title}`,
+                            `Remove reference ${item.title}`,
+                          )}
                           onClick={() => setDeleting(item.document_id!)}
                         >
                           <Trash size={17} />
@@ -408,45 +434,47 @@ export default function Library({ project }: { project: Project | null }) {
                     <span>
                       {
                         {
-                          success: "通过记录",
-                          failure: "失败教训 · 仅供排错",
-                          repair: "修复与复测",
+                          success: t("通过记录"),
+                          failure: t("失败教训 · 仅供排错"),
+                          repair: t("修复与复测"),
                         }[item.experience_kind]
                       }
                     </span>
                   )}
-                  <span>{item.version || "版本未填写"}</span>
+                  <span>{item.version || t("版本未填写")}</span>
                   {item.content_kind && (
                     <span>
                       {item.origin === "experience"
-                        ? "已核对的运行经验"
+                        ? t("已核对的运行经验")
                         : item.content_kind === "original"
-                          ? "原文资料"
-                          : "整理摘要"}
+                          ? t("原文资料")
+                          : t("整理摘要")}
                     </span>
                   )}
                   {item.board && (
                     <span>
                       {item.board === "any"
-                        ? "通用资料"
+                        ? t("通用资料")
                         : item.board === "unknown"
-                          ? "板型未核对"
+                          ? t("板型未核对")
                           : item.board.toUpperCase()}
                     </span>
                   )}
                   {item.ros_distro && (
                     <span>
                       {item.ros_distro === "not_applicable"
-                        ? "不涉及 ROS"
+                        ? t("不涉及 ROS")
                         : item.ros_distro === "any"
-                          ? "不限定 ROS 版本"
+                          ? t("不限定 ROS 版本")
                           : item.ros_distro === "unknown"
-                            ? "ROS 版本未标注"
+                            ? t("ROS 版本未标注")
                             : `ROS ${item.ros_distro}`}
                     </span>
                   )}
                   {typeof item.score === "number" && query && (
-                    <span>相关得分 {item.score.toFixed(3)}</span>
+                    <span>
+                      {t("相关得分")} {item.score.toFixed(3)}
+                    </span>
                   )}
                   {item.tags?.map((tag) => (
                     <span key={tag}>{tag}</span>
@@ -462,17 +490,24 @@ export default function Library({ project }: { project: Project | null }) {
                 {(item.page_start != null || item.line_start != null) && (
                   <p className="citation-location">
                     {item.page_start != null
-                      ? `第 ${item.page_start}${item.page_end && item.page_end !== item.page_start ? `–${item.page_end}` : ""} 页`
+                      ? t(
+                          `第 ${item.page_start}${item.page_end && item.page_end !== item.page_start ? `–${item.page_end}` : ""} 页`,
+                          `Page ${item.page_start}${item.page_end && item.page_end !== item.page_start ? `–${item.page_end}` : ""}`,
+                        )
                       : ""}
                     {item.line_start != null
-                      ? ` 第 ${item.line_start}${item.line_end && item.line_end !== item.line_start ? `–${item.line_end}` : ""} 行`
+                      ? t(
+                          ` 第 ${item.line_start}${item.line_end && item.line_end !== item.line_start ? `–${item.line_end}` : ""} 行`,
+                          ` Lines ${item.line_start}${item.line_end && item.line_end !== item.line_start ? `–${item.line_end}` : ""}`,
+                        )
                       : ""}
                   </p>
                 )}
                 {item.origin === "experience" ? (
                   <p className="field-hint">
-                    这份记录包含工具检查摘要和 AI
-                    程序摘录。请点“查看完整内容”，按来源分别查看；失败记录仅供排错。
+                    {t(
+                      "这份记录包含工具检查摘要和 AI 程序摘录。请点“查看完整内容”，按来源分别查看；失败记录仅供排错。",
+                    )}
                   </p>
                 ) : (
                   <>
@@ -482,32 +517,35 @@ export default function Library({ project }: { project: Project | null }) {
                     </p>
                     {item.content?.length > 500 && (
                       <details className="source-excerpt">
-                        <summary>展开这段资料</summary>
+                        <summary>{t("展开这段资料")}</summary>
                         <pre>{item.content}</pre>
                       </details>
                     )}
                   </>
                 )}
                 <small>
-                  来源标识 {item.id} · {item.license || "许可见来源"}
+                  {t("来源标识")} {item.id} · {item.license || t("许可见来源")}
                   {item.checked_at
-                    ? ` · 核对于 ${item.checked_at.slice(0, 10)}`
+                    ? t(
+                        ` · 核对于 ${item.checked_at.slice(0, 10)}`,
+                        ` · reviewed on ${item.checked_at.slice(0, 10)}`,
+                      )
                     : ""}
                 </small>
                 {deleting === item.document_id && (
                   <div className="delete-confirm">
-                    <span>从本机资料库移除整份文档及其片段？</span>
+                    <span>{t("从本机资料库移除整份文档及其片段？")}</span>
                     <button
                       className="button secondary"
                       onClick={() => setDeleting(null)}
                     >
-                      取消
+                      {t("取消")}
                     </button>
                     <button
                       className="button secondary"
                       onClick={() => void remove(item.document_id!)}
                     >
-                      确认移除
+                      {t("确认移除")}
                     </button>
                   </div>
                 )}
@@ -517,8 +555,8 @@ export default function Library({ project }: { project: Project | null }) {
             .length && (
             <div className="empty-state">
               <MagnifyingGlass size={28} />
-              <h3>没有匹配的资料</h3>
-              <p>换一个关键词、取消筛选，或导入对应版本的资料。</p>
+              <h3>{t("没有匹配的资料")}</h3>
+              <p>{t("换一个关键词、取消筛选，或导入对应版本的资料。")}</p>
             </div>
           )}
         </div>
@@ -539,6 +577,7 @@ function documentMetadata(source: Source): Record<string, unknown> {
   return result;
 }
 function ExperienceText({ text }: { text: string }) {
+  useI18n();
   const parts: { text: string; code: boolean }[] = [];
   const fences = /```[^\n]*\n([\s\S]*?)```/g;
   let start = 0;
@@ -555,7 +594,7 @@ function ExperienceText({ text }: { text: string }) {
         part.code ? (
           <div key={index} className="ai-content">
             <p className="ai-label">
-              AI 生成程序摘录 · 原运行记录保留工具与提示词
+              {t("AI 生成程序摘录 · 原运行记录保留工具与提示词")}
             </p>
             <pre>{part.text}</pre>
           </div>
@@ -571,10 +610,17 @@ function statsText(stats: Summary) {
   const documents =
     stats.documents ?? stats.document_count ?? stats.total_documents;
   const chunks = stats.chunks ?? stats.chunk_count ?? stats.total_chunks;
-  if (typeof documents === "number") values.push(`${documents} 份文档`);
-  if (typeof chunks === "number") values.push(`${chunks} 段资料`);
+  if (typeof documents === "number")
+    values.push(t(`${documents} 份文档`, `${documents} documents`));
+  if (typeof chunks === "number")
+    values.push(t(`${chunks} 段资料`, `${chunks} excerpts`));
   if (typeof stats.experience_documents === "number")
-    values.push(`${stats.experience_documents} 份运行经验`);
+    values.push(
+      t(
+        `${stats.experience_documents} 份运行经验`,
+        `${stats.experience_documents} run experiences`,
+      ),
+    );
   const method =
     stats.retrieval_mode ??
     stats.method ??
@@ -583,12 +629,12 @@ function statsText(stats: Summary) {
   if (typeof method === "string")
     values.push(
       method === "sqlite_fts5_bm25"
-        ? "全文检索（BM25）"
-        : `检索方式：${method}`,
+        ? t("全文检索（BM25）")
+        : t(`检索方式：${method}`, `Retrieval method: ${t(method)}`),
     );
   return values.length
     ? values.join(" · ")
-    : "索引状态来自后台，展开可查看当前资料和检索方式。";
+    : t("索引状态来自后台，展开可查看当前资料和检索方式。");
 }
 function ImportDocument({
   onClose,
@@ -599,6 +645,7 @@ function ImportDocument({
   onImported: () => void;
   project: Project | null;
 }) {
+  useI18n();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -662,11 +709,11 @@ function ImportDocument({
     setBusy(true);
     try {
       if (file.size > 10_000_000)
-        throw new Error("文件不能超过 10 MB（10,000,000 字节）。");
+        throw new Error(t("文件不能超过 10 MB（10,000,000 字节）。"));
       const content = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result).split(",")[1]);
-        reader.onerror = () => reject(new Error("文件读取失败"));
+        reader.onerror = () => reject(new Error(t("文件读取失败")));
         reader.readAsDataURL(file);
       });
       await api("/knowledge/documents", {
@@ -693,15 +740,16 @@ function ImportDocument({
     <section className="panel knowledge-import">
       <div className="section-intro">
         <div>
-          <h2>导入开发资料</h2>
+          <h2>{t("导入开发资料")}</h2>
           <p>
-            支持文字、含文字的
-            PDF、源码和机器人配置；导入只读取内容，不执行文件。
+            {t(
+              "支持文字、含文字的 PDF、源码和机器人配置；导入只读取内容，不执行文件。",
+            )}
           </p>
         </div>
         <button
           className="icon-button"
-          aria-label="关闭资料导入"
+          aria-label={t("关闭资料导入")}
           disabled={busy}
           onClick={onClose}
         >
@@ -715,19 +763,21 @@ function ImportDocument({
           onClick={() => input.current?.click()}
         >
           <UploadSimple size={17} />
-          {file ? "更换文件" : "选择文件"}
+          {file ? t("更换文件") : t("选择文件")}
         </button>
         <span>
           {file
             ? `${file.name} · ${(file.size / 1024).toFixed(0)} KB`
-            : "TXT / MD / PDF / Python / C++ / Arduino / YAML / JSON / URDF · 最大 10 MB"}
+            : t(
+                "TXT / MD / PDF / Python / C++ / Arduino / YAML / JSON / URDF · 最大 10 MB",
+              )}
         </span>
         <input
           hidden
           ref={input}
           type="file"
           accept=".txt,.md,.pdf,.py,.cpp,.h,.hpp,.ino,.c,.cc,.cxx,.yaml,.yml,.json,.xml,.urdf,.sdf"
-          aria-label="选择知识资料文件"
+          aria-label={t("选择知识资料文件")}
           onChange={(e) => {
             const selected = e.target.files?.[0];
             if (selected) {
@@ -739,7 +789,7 @@ function ImportDocument({
       </div>
       <div className="prd-grid">
         <label className="field">
-          <span>资料名称</span>
+          <span>{t("资料名称")}</span>
           <input
             value={title}
             maxLength={200}
@@ -748,47 +798,47 @@ function ImportDocument({
           />
         </label>
         <label className="field">
-          <span>适用版本</span>
+          <span>{t("适用版本")}</span>
           <input
             value={version}
             maxLength={100}
-            placeholder="例如：Arduino-ESP32 3.3.12；不清楚填待确认"
+            placeholder={t("例如：Arduino-ESP32 3.3.12；不清楚填待确认")}
             disabled={busy}
             onChange={(e) => setVersion(e.target.value)}
           />
         </label>
         <label className="field">
-          <span>适用板型</span>
+          <span>{t("适用板型")}</span>
           <select
-            aria-label="适用板型"
+            aria-label={t("适用板型")}
             value={board}
             disabled={busy}
             onChange={(e) => setBoard(e.target.value)}
           >
-            <option value="unknown">板型未核对</option>
-            <option value="any">通用资料</option>
+            <option value="unknown">{t("板型未核对")}</option>
+            <option value="any">{t("通用资料")}</option>
             <option value="esp32">ESP32</option>
             <option value="esp32s3">ESP32-S3</option>
           </select>
         </label>
         <label className="field">
-          <span>适用 ROS 版本</span>
+          <span>{t("适用 ROS 版本")}</span>
           <select
-            aria-label="适用 ROS 版本"
+            aria-label={t("适用 ROS 版本")}
             value={rosDistro}
             disabled={busy}
             onChange={(e) => setRosDistro(e.target.value)}
           >
-            <option value="unknown">版本未核对</option>
+            <option value="unknown">{t("版本未核对")}</option>
             <option value="humble">ROS 2 Humble</option>
             <option value="jazzy">ROS 2 Jazzy</option>
             <option value="lyrical">ROS 2 Lyrical</option>
-            <option value="not_applicable">不涉及 ROS</option>
-            <option value="any">通用，不限定版本</option>
+            <option value="not_applicable">{t("不涉及 ROS")}</option>
+            <option value="any">{t("通用，不限定版本")}</option>
           </select>
         </label>
         <label className="field">
-          <span>来源网址（可选）</span>
+          <span>{t("来源网址（可选）")}</span>
           <input
             value={url}
             disabled={busy}
@@ -799,10 +849,10 @@ function ImportDocument({
         </label>
       </div>
       <div className="task-checkboxes">
-        <span>用于哪些任务</span>
+        <span>{t("用于哪些任务")}</span>
         {[
-          { id: "joint_position", label: "关节位置" },
-          { id: "sensor_threshold", label: "传感器阈值" },
+          { id: "joint_position", label: t("关节位置") },
+          { id: "sensor_threshold", label: t("传感器阈值") },
         ].map((task) => (
           <label key={task.id}>
             <input
@@ -826,62 +876,64 @@ function ImportDocument({
         open={modelScope !== "unknown"}
       >
         <summary>
-          资料适用的结构与软件 ·{" "}
+          {t("资料适用的结构与软件 ·")}{" "}
           {modelScope === "unknown"
-            ? "尚未确认，先存档"
+            ? t("尚未确认，先存档")
             : modelScope === "any"
-              ? "已确认通用"
-              : modelId || "待填写"}
+              ? t("已确认通用")
+              : modelId || t("待填写")}
         </summary>
         <p className="field-hint">
-          结构资料必须和项目模型对应。没有确认版本或适用结构时，只保存资料供查看，不交给
-          AI 生成程序。
+          {t(
+            "结构资料必须和项目模型对应。没有确认版本或适用结构时，只保存资料供查看，不交给 AI 生成程序。",
+          )}
         </p>
         <label className="field">
-          <span>适用结构</span>
+          <span>{t("适用结构")}</span>
           <select
-            aria-label="资料适用结构"
+            aria-label={t("资料适用结构")}
             disabled={busy}
             value={modelScope}
             onChange={(e) => setModelScope(e.target.value)}
           >
-            <option value="unknown">尚未确认（只保存和查看）</option>
-            <option value="any">通用资料（确认不限制结构）</option>
+            <option value="unknown">{t("尚未确认（只保存和查看）")}</option>
+            <option value="any">{t("通用资料（确认不限制结构）")}</option>
             <option
               value="current"
               disabled={!currentModel || !/^[a-f0-9]{64}$/.test(currentHash)}
             >
-              当前工程结构{project ? ` · ${project.name}` : "（先选择工程）"}
+              {t("当前工程结构")}
+              {project ? ` · ${project.name}` : t("（先选择工程）")}
             </option>
-            <option value="custom">其他指定结构</option>
+            <option value="custom">{t("其他指定结构")}</option>
           </select>
         </label>
         {modelScope === "current" && (
           <p className="field-hint">
-            模型 {currentModel} · 源文件校验值 {currentHash}
-            。来自当前工程已保存的结构，不从资料内容猜测。
+            {t("模型")} {currentModel} {t("· 源文件校验值")} {currentHash}
+            {t("。来自当前工程已保存的结构，不从资料内容猜测。")}
           </p>
         )}
         {modelScope === "custom" && (
           <div className="prd-grid">
             <label className="field">
-              <span>模型标识</span>
+              <span>{t("模型标识")}</span>
               <input
-                aria-label="资料模型标识"
+                aria-label={t("资料模型标识")}
                 value={customModel}
                 onChange={(e) => setCustomModel(e.target.value)}
-                placeholder="填写结构的准确编号"
+                placeholder={t("填写结构的准确编号")}
                 maxLength={100}
                 disabled={busy}
               />
             </label>
             <label className="field">
-              <span>源模型 SHA256（64位）</span>
+              <span>{t("源模型 SHA256（64位）")}</span>
               <input
-                aria-label="源模型校验值"
+                aria-label={t("源模型校验值")}
                 value={customHash}
                 onChange={(e) => setCustomHash(e.target.value)}
-                placeholder="从结构来源记录复制，用于匹配同一份模型"
+                placeholder={t("从结构来源记录复制，用于匹配同一份模型")}
                 maxLength={64}
                 disabled={busy}
               />
@@ -890,17 +942,20 @@ function ImportDocument({
         )}
         {!validModel && (
           <p className="input-error">
-            指定结构需要准确的模型标识和 64
-            位源文件校验值；还不清楚时请选择“尚未确认”。
+            {t(
+              "指定结构需要准确的模型标识和 64 位源文件校验值；还不清楚时请选择“尚未确认”。",
+            )}
           </p>
         )}
         <p className="field-hint">
-          文档版本与程序依赖版本分开填写。以下两项尚未确认时也只存档；资料确实不涉及该依赖时，明确选“通用资料”。
+          {t(
+            "文档版本与程序依赖版本分开填写。以下两项尚未确认时也只存档；资料确实不涉及该依赖时，明确选“通用资料”。",
+          )}
         </p>
         <div className="prd-grid">
           {[
-            { id: "esp32_core", label: "ESP32 核心版本" },
-            { id: "arduinojson", label: "ArduinoJson 版本" },
+            { id: "esp32_core", label: t("ESP32 核心版本") },
+            { id: "arduinojson", label: t("ArduinoJson 版本") },
           ].map((sdk) => (
             <div key={sdk.id}>
               <label className="field">
@@ -916,23 +971,29 @@ function ImportDocument({
                     }))
                   }
                 >
-                  <option value="unknown">尚未确认（只存档）</option>
-                  <option value="any">通用资料（不限制该依赖）</option>
+                  <option value="unknown">{t("尚未确认（只存档）")}</option>
+                  <option value="any">{t("通用资料（不限制该依赖）")}</option>
                   <option
                     value="current"
                     disabled={!project?.manifest?.dependencies[sdk.id]}
                   >
-                    当前工程 ·{" "}
-                    {project?.manifest?.dependencies[sdk.id] || "未读取"}
+                    {t("当前工程 ·")}{" "}
+                    {project?.manifest?.dependencies[sdk.id] || t("未读取")}
                   </option>
-                  <option value="custom">填写准确版本</option>
+                  <option value="custom">{t("填写准确版本")}</option>
                 </select>
               </label>
               {sdkModes[sdk.id] === "custom" && (
                 <label className="field">
-                  <span>{sdk.label}具体值</span>
+                  <span>
+                    {sdk.label}
+                    {t("具体值")}
+                  </span>
                   <input
-                    aria-label={`${sdk.label}具体值`}
+                    aria-label={t(
+                      `${sdk.label}具体值`,
+                      `${sdk.label} exact value`,
+                    )}
                     value={sdkValues[sdk.id]}
                     maxLength={100}
                     disabled={busy}
@@ -943,7 +1004,9 @@ function ImportDocument({
                       }))
                     }
                     placeholder={
-                      sdk.id === "esp32_core" ? "例如 3.3.12" : "例如 7.4.3"
+                      sdk.id === "esp32_core"
+                        ? t("例如 3.3.12")
+                        : t("例如 7.4.3")
                     }
                   />
                 </label>
@@ -953,14 +1016,14 @@ function ImportDocument({
         </div>
         {!validSDK && (
           <p className="input-error">
-            请填写明确的数字版本；不知道版本时请选择“尚未确认”。
+            {t("请填写明确的数字版本；不知道版本时请选择“尚未确认”。")}
           </p>
         )}
       </details>
       <p className="field-hint">
-        只填写资料实际适用的版本和板型。空白、unknown、待确认、latest
-        等不视为已核对版本，只能保存和浏览，不用于生成程序。扫描图片类 PDF
-        需先转成文字；本次导入不训练模型。
+        {t(
+          "只填写资料实际适用的版本和板型。空白、unknown、待确认、latest 等不视为已核对版本，只能保存和浏览，不用于生成程序。扫描图片类 PDF 需先转成文字；本次导入不训练模型。",
+        )}
       </p>
       {error && <div className="notice warning">{error}</div>}
       <div className="form-actions">
@@ -983,7 +1046,7 @@ function ImportDocument({
           ) : (
             <UploadSimple size={17} />
           )}
-          导入并建立索引
+          {t("导入并建立索引")}
         </button>
       </div>
     </section>

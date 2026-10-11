@@ -1,3 +1,6 @@
+import { useI18n } from "./i18n";
+import { t } from "./localeStore.ts";
+import "./i18nPanels";
 import { CaretDown, CheckCircle, WarningCircle } from "@phosphor-icons/react";
 import { printable, type Check } from "./api";
 
@@ -40,51 +43,54 @@ const names: Record<string, string> = {
   gazebo_physics_measurements: "收到物理仿真的关节位置",
 };
 export function checkName(name: string) {
-  if (names[name]) return names[name];
+  if (names[name]) return t(names[name]);
   const logic = name.match(/^logic_(joint|sensor)_case_(\d+)$/);
   if (logic)
-    return `${logic[1] === "joint" ? "关节控制" : "传感器触发"}逻辑 · 情形 ${Number(logic[2]) + 1}`;
+    return t(
+      `${logic[1] === "joint" ? t("关节控制") : t("传感器触发")}逻辑 · 情形 ${Number(logic[2]) + 1}`,
+      `${logic[1] === "joint" ? t("关节控制") : t("传感器触发")} logic · case ${Number(logic[2]) + 1}`,
+    );
   const prefixes: Record<string, string> = {
-    primary: "当前目标",
-    alternate_target: "更换目标",
-    already_at_target: "起点已在目标位置",
-    alternate_threshold: "更换触发阈值",
-    gazebo_primary: "关节物理仿真",
-    serial_primary: "虚拟串口",
-    communication_loop: "两端通信闭环",
-    model_primary: "所选关节当前目标",
-    model_alternate: "所选关节更换目标",
-    model_already: "所选关节起点已在目标位置",
-    serial_alternate_threshold: "虚拟串口更换阈值",
+    primary: t("当前目标"),
+    alternate_target: t("更换目标"),
+    already_at_target: t("起点已在目标位置"),
+    alternate_threshold: t("更换触发阈值"),
+    gazebo_primary: t("关节物理仿真"),
+    serial_primary: t("虚拟串口"),
+    communication_loop: t("两端通信闭环"),
+    model_primary: t("所选关节当前目标"),
+    model_alternate: t("所选关节更换目标"),
+    model_already: t("所选关节起点已在目标位置"),
+    serial_alternate_threshold: t("虚拟串口更换阈值"),
   };
   const suffixes: Record<string, string> = {
-    message_contract: "通信格式与收发",
-    state_frequency: "反馈频率",
-    position_tolerance: "位置误差",
-    threshold_behavior: "阈值触发与解除",
-    firmware_applied: "固件逻辑收到并采用指令",
-    device_logic_preservation: "执行的是本轮生成的 ESP32 算法",
-    same_model_feedback: "反馈来自本轮所选模型",
-    firmware_drives_gazebo: "固件逻辑的输出驱动物理仿真",
-    gazebo_backend_loaded: "物理仿真引擎正常启动",
+    message_contract: t("通信格式与收发"),
+    state_frequency: t("反馈频率"),
+    position_tolerance: t("位置误差"),
+    threshold_behavior: t("阈值触发与解除"),
+    firmware_applied: t("固件逻辑收到并采用指令"),
+    device_logic_preservation: t("执行的是本轮生成的 ESP32 算法"),
+    same_model_feedback: t("反馈来自本轮所选模型"),
+    firmware_drives_gazebo: t("固件逻辑的输出驱动物理仿真"),
+    gazebo_backend_loaded: t("物理仿真引擎正常启动"),
   };
   for (const [prefix, label] of Object.entries(prefixes))
     for (const [suffix, description] of Object.entries(suffixes))
       if (name === `${prefix}_${suffix}`) return `${label}：${description}`;
-  return "其他执行检查";
+  return t("其他执行检查");
 }
 export function engineName(engine: string) {
-  if (engine.includes("gazebo")) return "Gazebo 关节物理仿真 + ROS 通信检查";
-  if (engine.includes("sensor")) return "传感器数值模拟 + ROS 通信检查";
+  if (engine.includes("gazebo")) return t("Gazebo 关节物理仿真 + ROS 通信检查");
+  if (engine.includes("sensor")) return t("传感器数值模拟 + ROS 通信检查");
   if (engine.includes("ros") || engine.includes("numerical"))
-    return "ROS 通信与数值模拟";
-  return "本机程序执行与检查";
+    return t("ROS 通信与数值模拟");
+  return t("本机程序执行与检查");
 }
 export function espStatus(value: string) {
   if (value.includes("not_compiled") || value.includes("reference_only"))
-    return "参考代码，未编译烧录";
-  if (value.includes("sim")) return "模拟设备，未烧录";
-  return "查看原始记录确认";
+    return t("参考代码，未编译烧录");
+  if (value.includes("sim")) return t("模拟设备，未烧录");
+  return t("查看原始记录确认");
 }
 function groupOf(check: Check) {
   if (
@@ -115,6 +121,7 @@ function groupOf(check: Check) {
   return "通信与失联处理";
 }
 export default function ChecksView({ checks }: { checks: Check[] }) {
+  useI18n();
   return (
     <div className="checks-groups">
       {[
@@ -135,10 +142,10 @@ export default function ChecksView({ checks }: { checks: Check[] }) {
               ) : (
                 <CheckCircle size={19} className="good-text" />
               )}
-              <strong>{group}</strong>
+              <strong>{t(group)}</strong>
               <span>
                 {items.filter((item) => item.passed).length} / {items.length}{" "}
-                项通过
+                {t("项通过")}
               </span>
               <CaretDown className="check-disclosure" size={14} />
             </summary>
@@ -156,7 +163,7 @@ export default function ChecksView({ checks }: { checks: Check[] }) {
                       <WarningCircle className="bad-text" size={15} />
                     )}
                     <span>{checkName(item.name)}</span>
-                    <small>{item.passed ? "通过" : "失败"}</small>
+                    <small>{item.passed ? t("通过") : t("失败")}</small>
                   </summary>
                   <pre>
                     {item.name}

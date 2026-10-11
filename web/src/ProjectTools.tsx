@@ -1,3 +1,6 @@
+import { useI18n } from "./i18n";
+import { t } from "./localeStore.ts";
+import "./i18nPanels";
 import { useEffect, useRef, useState } from "react";
 import { CircleNotch, Copy, UploadSimple, X } from "@phosphor-icons/react";
 import {
@@ -43,6 +46,7 @@ export default function ProjectTools({
   onClose: () => void;
   dirty: boolean;
 }) {
+  useI18n();
   const [items, setItems] = useState<HistoryEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -97,7 +101,7 @@ export default function ProjectTools({
     setError("");
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".zip") || file.size > 30_000_000) {
-      setError("请选择不超过 30 MB 的工程 ZIP。");
+      setError(t("请选择不超过 30 MB 的工程 ZIP。"));
       return;
     }
     setBusy(true);
@@ -105,7 +109,8 @@ export default function ProjectTools({
       const encoded = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result).split(",")[1]);
-        reader.onerror = () => reject(new Error("文件读取失败，请重新选择。"));
+        reader.onerror = () =>
+          reject(new Error(t("文件读取失败，请重新选择。")));
         reader.readAsDataURL(file);
       });
       const next = { filename: file.name, content_base64: encoded };
@@ -122,16 +127,16 @@ export default function ProjectTools({
   return (
     <section
       className="panel project-tools"
-      aria-label={mode === "history" ? "工程版本历史" : "导入工程包"}
+      aria-label={mode === "history" ? t("工程版本历史") : t("导入工程包")}
     >
       <header className="panel-heading">
         <div>
-          <h2>{mode === "history" ? "工程版本历史" : "导入工程包"}</h2>
-          <p>保留原记录，创建新的草稿。生成、编译前仍需重新核对。</p>
+          <h2>{mode === "history" ? t("工程版本历史") : t("导入工程包")}</h2>
+          <p>{t("保留原记录，创建新的草稿。生成、编译前仍需重新核对。")}</p>
         </div>
         <button
           className="icon-button"
-          aria-label="关闭工程工具"
+          aria-label={t("关闭工程工具")}
           disabled={busy}
           onClick={onClose}
         >
@@ -140,7 +145,9 @@ export default function ProjectTools({
       </header>
       {dirty && (
         <div className="notice warning">
-          当前页面有未保存内容。打开新草稿会离开这些修改；需要保留时，请先关闭这里并保存。
+          {t(
+            "当前页面有未保存内容。打开新草稿会离开这些修改；需要保留时，请先关闭这里并保存。",
+          )}
         </div>
       )}
       {error && (
@@ -153,9 +160,9 @@ export default function ProjectTools({
           {run && (
             <div className="history-reuse">
               <div>
-                <strong>以当前查看的运行开始下一轮</strong>
+                <strong>{t("以当前查看的运行开始下一轮")}</strong>
                 <p>
-                  {run.spec_snapshot.name} · 规格 v
+                  {run.spec_snapshot.name} {t("· 规格 v")}
                   {run.spec_snapshot.spec_revision} · {run.id.slice(0, 8)}
                 </p>
               </div>
@@ -165,20 +172,22 @@ export default function ProjectTools({
                 onClick={() => void clone(`/runs/${run.id}/clone`)}
               >
                 <Copy size={17} />
-                复制本轮为新草稿
+                {t("复制本轮为新草稿")}
               </button>
             </div>
           )}
           {!project ? (
-            <p>先选择一个已保存的工程。</p>
+            <p>{t("先选择一个已保存的工程。")}</p>
           ) : busy && !items.length ? (
             <p>
               <CircleNotch className="spin" />
-              正在读取版本…
+              {t("正在读取版本…")}
             </p>
           ) : !items.length ? (
             <p>
-              这份历史工程尚未保存需求版本；之后每次保存和拆分都会留下记录。已执行的版本仍可从历史运行查看。
+              {t(
+                "这份历史工程尚未保存需求版本；之后每次保存和拆分都会留下记录。已执行的版本仍可从历史运行查看。",
+              )}
             </p>
           ) : (
             items.map((item) => (
@@ -190,21 +199,22 @@ export default function ProjectTools({
                   <time>{localTime(item.created_at)}</time>
                 </summary>
                 <div className="history-summary">
-                  <strong>{item.snapshot.name || "未命名需求"}</strong>
+                  <strong>{item.snapshot.name || t("未命名需求")}</strong>
                   <p>{item.snapshot.request}</p>
                   <p>
-                    {item.snapshot.hardware.board?.toUpperCase() || "板型待选"}{" "}
+                    {item.snapshot.hardware.board?.toUpperCase() ||
+                      t("板型待选")}{" "}
                     ·{" "}
                     {item.snapshot.prd?.intake?.answers.joint_name ||
                       item.snapshot.prd?.joint_name ||
                       (item.snapshot.task_type === "sensor_threshold"
-                        ? "模拟传感器"
-                        : "控制对象待选")}{" "}
+                        ? t("模拟传感器")
+                        : t("控制对象待选"))}{" "}
                     · {statusLabels[item.snapshot.status]}
                   </p>
                 </div>
                 <details>
-                  <summary>当时的参数和需求</summary>
+                  <summary>{t("当时的参数和需求")}</summary>
                   <pre>
                     {printable({
                       parameters: item.snapshot.parameters,
@@ -217,8 +227,9 @@ export default function ProjectTools({
                 {item.snapshot.plan && (
                   <div className="ai-content">
                     <p className="ai-label">
-                      这版拆分由 AI 生成 · {item.snapshot.plan.provenance?.tool}{" "}
-                      / {item.snapshot.plan.provenance?.model}
+                      {t("这版拆分由 AI 生成 ·")}{" "}
+                      {item.snapshot.plan.provenance?.tool} /{" "}
+                      {item.snapshot.plan.provenance?.model}
                     </p>
                     <pre>{printable(item.snapshot.plan)}</pre>
                   </div>
@@ -226,7 +237,7 @@ export default function ProjectTools({
                 {item.snapshot.plan_failure_provenance && (
                   <div className="ai-content">
                     <p className="ai-label">
-                      这版失败调用 · 工具、提示词与原回答
+                      {t("这版失败调用 · 工具、提示词与原回答")}
                     </p>
                     <pre>
                       {printable(item.snapshot.plan_failure_provenance)}
@@ -243,7 +254,7 @@ export default function ProjectTools({
                   }
                 >
                   <Copy size={16} />
-                  从这个版本新建
+                  {t("从这个版本新建")}
                 </button>
               </details>
             ))
@@ -257,20 +268,20 @@ export default function ProjectTools({
             onClick={() => fileInput.current?.click()}
           >
             <UploadSimple size={18} />
-            {preview ? "更换工程包" : "选择工程 ZIP"}
+            {preview ? t("更换工程包") : t("选择工程 ZIP")}
           </button>
           <input
             hidden
             ref={fileInput}
             type="file"
             accept=".zip"
-            aria-label="选择工程 ZIP 文件"
+            aria-label={t("选择工程 ZIP 文件")}
             onChange={(e) => void readZip(e.target.files?.[0])}
           />
           {busy && (
             <p>
               <CircleNotch className="spin" />
-              正在检查工程包…
+              {t("正在检查工程包…")}
             </p>
           )}
           {preview && (
@@ -278,35 +289,37 @@ export default function ProjectTools({
               <h3>{preview.name}</h3>
               <dl>
                 <div>
-                  <dt>任务 / 板型</dt>
+                  <dt>{t("任务 / 板型")}</dt>
                   <dd>
                     {preview.task_type === "joint_position"
-                      ? "关节位置控制"
-                      : preview.task_type === "sensor_threshold"
-                        ? "传感器触发"
-                        : "待整理 / 仅保存需求"}{" "}
-                    / {preview.board?.toUpperCase() || "板型待选"}
+                      ? t("关节位置控制")
+                      : preview.task_type === "joint_sequence"
+                        ? t("多关节顺序动作")
+                        : preview.task_type === "sensor_threshold"
+                          ? t("传感器触发")
+                          : t("待整理 / 仅保存需求")}{" "}
+                    / {preview.board?.toUpperCase() || t("板型待选")}
                   </dd>
                 </div>
                 <div>
-                  <dt>控制对象</dt>
+                  <dt>{t("控制对象")}</dt>
                   <dd>
                     {preview.joint_name ||
                       (preview.task_type === "sensor_threshold"
-                        ? "模拟传感器"
-                        : "控制对象待选")}
+                        ? t("模拟传感器")
+                        : t("控制对象待选"))}
                   </dd>
                 </div>
                 <div>
-                  <dt>来源运行</dt>
-                  <dd>{preview.source_run_id || "包内未提供"}</dd>
+                  <dt>{t("来源运行")}</dt>
+                  <dd>{preview.source_run_id || t("包内未提供")}</dd>
                 </div>
                 <div>
-                  <dt>版本记录</dt>
+                  <dt>{t("版本记录")}</dt>
                   <dd>
                     {preview.has_integrity
-                      ? "包内文件 SHA256 校验通过；作为新草稿仍需重检"
-                      : "历史包没有逐文件 SHA256 清单"}
+                      ? t("包内文件 SHA256 校验通过；作为新草稿仍需重检")
+                      : t("历史包没有逐文件 SHA256 清单")}
                   </dd>
                 </div>
               </dl>
@@ -325,7 +338,7 @@ export default function ProjectTools({
                   checked={checked}
                   onChange={(e) => setChecked(e.target.checked)}
                 />
-                已核对，作为新草稿导入；不继承旧批准或通过状态
+                {t("已核对，作为新草稿导入；不继承旧批准或通过状态")}
               </label>
               <button
                 className="button primary"
@@ -348,12 +361,14 @@ export default function ProjectTools({
                   }
                 }}
               >
-                导入为新草稿
+                {t("导入为新草稿")}
               </button>
             </div>
           )}
           <p className="field-hint">
-            只读取本平台导出的工程。不会执行包内程序、烧录固件或自动开始任务。
+            {t(
+              "只读取本平台导出的工程。不会执行包内程序、烧录固件或自动开始任务。",
+            )}
           </p>
         </div>
       )}
@@ -364,20 +379,20 @@ function eventLabel(event: string) {
   return (
     (
       {
-        created: "创建",
-        before_edit: "修改前保留",
-        saved: "保存需求",
-        updated: "保存需求",
-        planning: "开始拆分",
-        before_plan: "拆分前保留",
-        planned: "拆分完成",
-        plan_ready: "拆分完成",
-        plan_failed: "拆分失败",
-        plan_cancelled: "拆分取消",
-        approved: "人工核对",
-        imported: "导入工程",
-        cloned: "复制工程",
-        created_from_copy: "从已有版本创建",
+        created: t("创建", "Created"),
+        before_edit: t("修改前保留"),
+        saved: t("保存需求", "Requirements saved"),
+        updated: t("保存需求", "Requirements saved"),
+        planning: t("开始拆分", "Planning started"),
+        before_plan: t("拆分前保留"),
+        planned: t("拆分完成"),
+        plan_ready: t("拆分完成"),
+        plan_failed: t("拆分失败"),
+        plan_cancelled: t("拆分取消"),
+        approved: t("人工核对"),
+        imported: t("导入工程", "Project imported"),
+        cloned: t("复制工程", "Project copied"),
+        created_from_copy: t("从已有版本创建"),
       } as Record<string, string>
     )[event] || event
   );
