@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowClockwise,
+  Books,
   CaretRight,
   CheckCircle,
   CircleNotch,
@@ -8,6 +9,7 @@ import {
   FileText,
   Folder,
   GearSix,
+  House,
   Info,
   LinkSimple,
   List,
@@ -67,6 +69,12 @@ export default function App() {
   const [run, setRun] = useState<Run | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
   const [sidebar, setSidebar] = useState(false);
+  const [mobileNavigation, setMobileNavigation] = useState(
+    () => window.matchMedia("(max-width: 760px)").matches,
+  );
+  const sidebarRef = useRef<HTMLElement>(null);
+  const sidebarTriggerRef = useRef<HTMLButtonElement>(null);
+  const sidebarCloseRef = useRef<HTMLButtonElement>(null);
   const [projectTools, setProjectTools] = useState<"history" | "import" | null>(
     null,
   );
@@ -74,6 +82,46 @@ export default function App() {
   const refreshVersion = useRef(0);
   const locked = !!project && busyStatuses.includes(project.status);
   const dirty = draftIsChanged(draft, project);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const updateNavigation = () => {
+      setMobileNavigation(media.matches);
+      if (!media.matches) setSidebar(false);
+    };
+    media.addEventListener("change", updateNavigation);
+    return () => media.removeEventListener("change", updateNavigation);
+  }, []);
+  useEffect(() => {
+    if (!sidebar || !mobileNavigation) return;
+    sidebarCloseRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSidebar(false);
+      } else if (event.key === "Tab") {
+        const controls = Array.from(
+          sidebarRef.current?.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), a[href], [tabindex="0"]',
+          ) || [],
+        ).filter((control) => control.getClientRects().length > 0);
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      if (sidebarTriggerRef.current?.getClientRects().length)
+        sidebarTriggerRef.current.focus();
+    };
+  }, [sidebar, mobileNavigation]);
   const loadRuns = useCallback(async (p: Project, version: number) => {
     const data = await api<{ items: Run[] }>(`/projects/${p.id}/runs`);
     if (selectionVersion.current !== version) return;
@@ -357,13 +405,20 @@ export default function App() {
   const selectedStatus = project?.status || "draft";
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        跳至主要内容
+      </a>
       <header className="app-header">
         <button
+          ref={sidebarTriggerRef}
+          type="button"
           className="icon-button mobile-menu"
           onClick={() => setSidebar(!sidebar)}
-          aria-label="打开工程列表"
+          aria-label={sidebar ? "关闭工程列表" : "打开工程列表"}
+          aria-expanded={sidebar}
+          aria-controls="project-sidebar"
         >
-          <List size={23} />
+          <List size={23} aria-hidden="true" />
         </button>
         <a
           className="brand"
@@ -387,10 +442,21 @@ export default function App() {
           ).map((item) => (
             <button
               key={item.id}
-              onClick={() => setPage(item.id)}
+              onClick={() => {
+                setPage(item.id);
+                setSidebar(false);
+              }}
               className={page === item.id ? "active" : ""}
+              aria-current={page === item.id ? "page" : undefined}
             >
-              {item.label}
+              {item.id === "workbench" ? (
+                <House size={18} aria-hidden="true" />
+              ) : item.id === "library" ? (
+                <Books size={18} aria-hidden="true" />
+              ) : (
+                <GearSix size={18} aria-hidden="true" />
+              )}
+              <span>{item.label}</span>
             </button>
           ))}
         </nav>
@@ -399,10 +465,19 @@ export default function App() {
           {isPublicDemo ? "完整界面体验版" : connected ? "本机服务已连接" : "本机服务未连接"}
         </div>
       </header>
-      <aside className={`sidebar ${sidebar ? "open" : ""}`}>
+      <aside
+        id="project-sidebar"
+        ref={sidebarRef}
+        className={`sidebar ${sidebar ? "open" : ""}`}
+        aria-label="工程列表"
+        aria-hidden={mobileNavigation && !sidebar ? true : undefined}
+        inert={mobileNavigation && !sidebar}
+      >
         <div className="sidebar-title">
           <span>工程</span>
           <button
+            ref={sidebarCloseRef}
+            type="button"
             className="icon-button mobile-menu"
             aria-label="关闭工程列表"
             onClick={() => setSidebar(false)}
@@ -436,6 +511,7 @@ export default function App() {
               key={item.id}
               disabled={loading || busy}
               className={project?.id === item.id ? "selected" : ""}
+              aria-current={project?.id === item.id ? "true" : undefined}
               onClick={() => void selectProject(item)}
             >
               <Robot size={20} />
@@ -459,10 +535,15 @@ export default function App() {
         <button
           className="sidebar-overlay"
           aria-label="关闭工程列表"
+          tabIndex={-1}
           onClick={() => setSidebar(false)}
         />
       )}
-      <main className={`main ${page !== "workbench" ? "secondary-page" : ""}`}>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={`main ${page !== "workbench" ? "secondary-page" : ""}`}
+      >
         {isPublicDemo && <div className="public-demo-notice" role="note">
           <div><strong>完整工作台 · 分享体验版</strong><p>可填写 PRD、查看流程、旋转模型和回放已有结果。生成、编译与 ROS 运行需要完整本机平台；新草稿没有验收结果。</p></div>
           <a className="button secondary" href="./guide.html">项目说明</a>

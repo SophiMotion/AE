@@ -126,7 +126,7 @@ export default function StructureView({
       return;
     }
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#101518");
+    scene.background = new THREE.Color("#f5f7fb");
     const camera = new THREE.PerspectiveCamera(38, 1, 0.001, 1000);
     camera.up.set(0, 0, 1);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -140,11 +140,11 @@ export default function StructureView({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.09;
-    scene.add(new THREE.HemisphereLight(0xdce9f2, 0x39423c, 2.2));
-    const key = new THREE.DirectionalLight(0xffffff, 3.2);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xc6cfdf, 1.8));
+    const key = new THREE.DirectionalLight(0xffffff, 2.6);
     key.position.set(4, -4, 7);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0xe87b61, 0.8);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.8);
     fill.position.set(-3, 4, 2);
     scene.add(fill);
     const group = new THREE.Group();
@@ -284,7 +284,7 @@ export default function StructureView({
       ? new THREE.Vector3(1, 1, 1)
       : box.getSize(new THREE.Vector3());
     const extent = Math.max(size.x, size.y, size.z, 0.2);
-    const grid = new THREE.GridHelper(extent * 3, 24, 0x48514f, 0x263034);
+    const grid = new THREE.GridHelper(extent * 3, 24, 0xa7b4cb, 0xd9e0eb);
     grid.rotation.x = Math.PI / 2;
     grid.position.set(
       center.x,

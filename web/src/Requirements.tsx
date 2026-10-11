@@ -66,6 +66,8 @@ import {
 } from "./intakeGuide";
 
 type Props = ComponentProps<typeof LegacyRequirements>;
+const guideScrollBehavior = (): ScrollBehavior =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 export default function Requirements(props: Props) {
   if (!props.draft.prd.intake)
     return (
@@ -281,7 +283,7 @@ function IntakeGuide({
     setStep(next);
     requestAnimationFrame(() => {
       titleRef.current?.focus({ preventScroll: true });
-      titleRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+      titleRef.current?.scrollIntoView({ block: "start", behavior: guideScrollBehavior() });
     });
   };
   const goIssue = (issue: IntakeIssue) => {
@@ -327,7 +329,7 @@ function IntakeGuide({
       if (!highlight) {
         titleRef.current?.scrollIntoView({
           block: "start",
-          behavior: "smooth",
+          behavior: guideScrollBehavior(),
         });
         return;
       }
@@ -344,7 +346,7 @@ function IntakeGuide({
           ) ||
           highlight.querySelector<HTMLElement>("button:not(:disabled)") ||
           highlight;
-      focus.scrollIntoView({ block: "center", behavior: "smooth" });
+      focus.scrollIntoView({ block: "center", behavior: guideScrollBehavior() });
       focus.focus({ preventScroll: true });
     });
     return () => {

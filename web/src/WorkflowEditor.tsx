@@ -72,9 +72,18 @@ export default function WorkflowEditor({
         id: e.id || `${e.source}-${e.target}-${i}`,
         selected: selectedEdge === (e.id || `${e.source}-${e.target}-${i}`),
         type: "smoothstep",
-        markerEnd: { type: MarkerType.ArrowClosed, color: "#ec563a" },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color:
+            selectedEdge === (e.id || `${e.source}-${e.target}-${i}`)
+              ? "#002fa7"
+              : "#4285f4",
+        },
         style: {
-          stroke: "#ec563a",
+          stroke:
+            selectedEdge === (e.id || `${e.source}-${e.target}-${i}`)
+              ? "#002fa7"
+              : "#4285f4",
           strokeWidth:
             selectedEdge === (e.id || `${e.source}-${e.target}-${i}`) ? 3 : 1.4,
         },
@@ -217,7 +226,8 @@ export default function WorkflowEditor({
               fitViewOptions={{ padding: 0.12 }}
               minZoom={0.35}
               maxZoom={1.6}
-              colorMode="dark"
+              colorMode="light"
+              connectionLineStyle={{ stroke: "#002fa7", strokeWidth: 2 }}
               nodesDraggable={!locked}
               nodesConnectable={!locked}
               edgesReconnectable={false}
@@ -269,7 +279,7 @@ export default function WorkflowEditor({
             >
               <Background
                 variant={BackgroundVariant.Dots}
-                color="#31383d"
+                color="#c9d2e3"
                 gap={22}
               />
               <Controls showInteractive={false} />
