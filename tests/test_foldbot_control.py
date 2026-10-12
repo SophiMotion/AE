@@ -491,3 +491,46 @@ def test_real_stop_reports_transport_failure_without_claiming_sent_or_closed():
         assert response['data']['physical_stop_verified'] is False
         assert 'uncertain' in response['reason']
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('initial_close_succeeds', [True, False])
+def test_simplified_late_connect_keeps_shared_owner_and_stops_late_backend(initial_close_succeeds):
+    async def run():
+        from server.foldbot_arbiter import FoldBotArbiter
+        from server.foldbot_control import ConnectRequest
+        arbiter = FoldBotArbiter()
+        controller, backend, _ = fixture_controller(arbiter=arbiter)
+        original_stop = backend.stop_and_disconnect
+        async def uncertain_stop():
+            response = await original_stop()
+            if backend.stops == 1 and not initial_close_succeeds:
+                response.update(ok=False, reason='transport_cleanup_uncertain',
+                                data={'transport_closed': False})
+            return response
+        backend.stop_and_disconnect = uncertain_stop
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def late_connect(url):
+            entered.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                await release.wait()
+            backend.connected = True
+            return dict(ok=True, reason='late')
+        backend.connect = late_connect
+        request = ConnectRequest(project_id='project1', revision=1, address='192.168.4.1', confirmed=True)
+        response = await controller.connect(request)
+        await entered.wait()
+        await controller.stop(response['session_id'])
+        assert arbiter.status()['occupied']
+        with pytest.raises(HTTPException):
+            await controller.connect(request)
+        release.set()
+        for _ in range(50):
+            session = controller.retired[response['session_id']]
+            if session.draining_task and session.draining_task.done(): break
+            await asyncio.sleep(.01)
+        assert not backend.connected
+        assert arbiter.status()['occupied'] is (not initial_close_succeeds)
+        await controller.close()
+    asyncio.run(run())

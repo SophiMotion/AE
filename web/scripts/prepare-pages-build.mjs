@@ -5,10 +5,15 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const build = resolve(root, "dist/pages");
 const docs = resolve(root, "../docs");
-for (const name of ["index.html", "public-demo.json", "structure.json", "model.bin", "foldbot-example.json", "foldbot-example.zip"]) {
+for (const name of ["index.html", "public-demo.json", "structure.json", "model.bin", "foldbot-example.json", "foldbot-example.zip", "foldbot-console-preview.html", "foldbot-console-provenance.json"]) {
   if (!existsSync(resolve(build, name))) throw new Error(`缺少分享版资源：${name}`);
 }
 // Only publish this static build. Keep guide.html and the original public evidence files.
+// The live iframe belongs only to the local build, never to the public Pages tree.
+for (const folder of [build, docs]) {
+  const localConsole = resolve(folder, "foldbot-console-local.html");
+  if (existsSync(localConsole)) rmSync(localConsole);
+}
 cpSync(build, docs, { recursive: true });
 const currentAssets = new Set(readdirSync(resolve(build, "assets")));
 for (const name of readdirSync(resolve(docs, "assets"))) {

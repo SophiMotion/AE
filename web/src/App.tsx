@@ -52,12 +52,14 @@ import { invalidateMotionReview } from "./motionPlan";
 import { isPublicDemo } from "./api";
 import { downloadDraft } from "./demoDownload";
 import FoldBotWorkbench from "./FoldBotWorkbench";
-type Page = "workbench" | "foldbot" | "library" | "settings";
+import FoldBotConsole from "./FoldBotConsole";
+type Page = "workbench" | "foldbot" | "foldbot-console" | "library" | "settings";
 export default function App() {
   const { locale, setLocale } = useI18n();
 
   const [page, setPage] = useState<Page>(() =>
-    window.location.hash === "#foldbot" ? "foldbot" : "workbench",
+    window.location.hash === "#foldbot-console" ? "foldbot-console" :
+      window.location.hash === "#foldbot" ? "foldbot" : "workbench",
   );
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
@@ -493,8 +495,8 @@ export default function App() {
                 window.history.replaceState(null, "", url);
                 setSidebar(false);
               }}
-              className={page === item.id ? "active" : ""}
-              aria-current={page === item.id ? "page" : undefined}
+              className={page === item.id || (page === "foldbot-console" && item.id === "foldbot") ? "active" : ""}
+              aria-current={page === item.id || (page === "foldbot-console" && item.id === "foldbot") ? "page" : undefined}
             >
               {item.id === "workbench" ? (
                 <House size={18} aria-hidden="true" />
@@ -662,8 +664,16 @@ export default function App() {
             </button>
           </div>
         )}
-        {page === "foldbot" ? (
-          <FoldBotWorkbench />
+        {page === "foldbot-console" ? (
+          <FoldBotConsole onBack={() => {
+            setPage("foldbot");
+            window.history.replaceState(null, "", "#foldbot");
+          }} />
+        ) : page === "foldbot" ? (
+          <FoldBotWorkbench onOpenConsole={() => {
+            setPage("foldbot-console");
+            window.history.replaceState(null, "", "#foldbot-console");
+          }} />
         ) : loading ? (
           <div className="initial-loader">
             <CircleNotch size={30} className="spin" />

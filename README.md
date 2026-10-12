@@ -13,7 +13,13 @@
 
 本机控制记录保存在 AE 自己的 `.tools/workbench.sqlite3`，可在控制页“查看操作记录 JSON”打开最近记录；停止请求记录也不会被视为物理停止验收。共享 JSON 与 ZIP 由 `python web/scripts/prepare-foldbot-demo.py` 使用同一生成服务制作，随后执行 `npm --prefix web run build:pages` 更新 `docs`，不需要访问机器人。
 
-FoldBot 软件检查：`python -m pytest tests/test_foldbot_projects.py tests/test_foldbot_control.py tests/test_foldbot_integration.py -q` 与 `npm --prefix web run test:foldbot`。这些测试使用替身设备，不连接机器人。2026-10-12 本次检查分别通过 58 项后端测试、12 项前端测试；本机与 Pages 构建通过，浏览器完成 14 项流程检查。固件未在本轮编译或烧录，ROS 未执行，实物状态仍待现场验收。
+**原版完整控制台：** “折叠机器人 → 打开原版完整控制台”，本机直达 `http://127.0.0.1:8877/#foldbot-console`。复用原 `web_google.html` 的 3D 视图、底盘摇杆、双板控制与维护、六关节点动、姿态示教和动作组操作。它可独立连接已有机器人，不要求重新生成 PRD。电脑先连接 ESP 热点，关闭其他机器人控制网页，再在 AE 确认现场条件并连接，检查状态后单独使能。首次连接只读取握手和状态；不自动写标定、改功率或使能。
+
+完整控制台保留原底盘 ±100 输入、30/60/100 功率档和机械臂长按点动，不采用简化面板的短点动限制。行程保存/清除、方向修改、姿态覆盖与路径确认需要逐次确认。当前适配固件为上文的无微动限位版本，自动回零不可用。两种控制入口互斥；隐藏、离开、失联后撤销控制，不自动恢复运动。3D 为状态示意，ACK 和脉冲计数均不是物理到位证据。
+
+公开 `#foldbot-console` 使用独立只读预览文件，允许旋转模型，不创建控制会话。Pages 打包移除本机控制 HTML。ROS 仍为代码展示，本轮不运行 ROS，也不编译、烧录固件或验证实机运动。
+
+FoldBot 软件检查：`python -m pytest tests/test_foldbot_projects.py tests/test_foldbot_control.py tests/test_foldbot_integration.py tests/test_foldbot_console.py tests/test_foldbot_console_assets.py -q` 与 `npm --prefix web run test:foldbot`。测试使用替身设备。修改原控制台适配脚本后运行 `python web/scripts/prepare-foldbot-console.py` 重新生成静态资源，再构建本机版和 Pages。
  在线体验
 - [GitHub Pages 完整工作台体验版](https://sophimotion.github.io/AE/)，
 - [项目说明页](https://sophimotion.github.io/AE/guide.html)。仓库 main 分支的 docs 目录为发布来源。

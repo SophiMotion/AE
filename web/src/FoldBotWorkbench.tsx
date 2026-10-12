@@ -68,7 +68,7 @@ function downloadText(
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function FoldBotWorkbench() {
+export default function FoldBotWorkbench({ onOpenConsole }: { onOpenConsole: () => void }) {
   const { t } = useI18n();
   const [cache] = useState(readCache);
   const [draft, setDraft] = useState<FoldBotDraft>(cache?.draft ?? defaults);
@@ -355,6 +355,10 @@ export default function FoldBotWorkbench() {
               "Bring the chassis, folding panels and arm into one project. Define the request, review the source, then explicitly operate from your local machine.",
             )}
           </p>
+          <button type="button" className="button primary" onClick={onOpenConsole}>
+            <Robot size={20} aria-hidden="true" />
+            {t("打开原版完整控制台", "Open original full console")}
+          </button>
         </div>
         <div className="foldbot-hero-mark" aria-hidden="true">
           <Robot size={48} weight="duotone" />

@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, TypeAdapter, field_validator
 
 from .foldbot_esp import ESPBackend, EXPECTED_FIRMWARE_BUILD
+from .foldbot_arbiter import FoldBotArbiter
 
 
 def _confirmed(value):
@@ -130,13 +131,16 @@ class _Session:
     monitor_task: asyncio.Task | None = None
     command_task: asyncio.Task | None = None
     cleanup_task: asyncio.Task | None = None
+    draining_task: asyncio.Task | None = None
+    late_socket_closed: bool = True
+    opening_socket: object = None
     stop_result: dict | None = None
     events: deque = field(default_factory=lambda: deque(maxlen=100))
 
 
 class FoldBotController:
     def __init__(self, require_current_generation: Callable, *, backend_factory=ESPBackend,
-                 clock=time.monotonic, lease_seconds=2., monitor_interval=.05, on_event=None):
+                 clock=time.monotonic, lease_seconds=2., monitor_interval=.05, on_event=None, arbiter=None):
         if not 0 < lease_seconds <= 2. or not 0 < monitor_interval <= .1:
             raise ValueError('invalid_lease_monitor_limits')
         self.require_current_generation = require_current_generation
@@ -147,6 +151,7 @@ class FoldBotController:
         self.retired = OrderedDict()
         self.closing = False
         self.event_tasks = set()
+        self.arbiter = arbiter if arbiter is not None else FoldBotArbiter()
 
     def _event(self, session, operation, reason):
         event = dict(project_id=session.project_id, revision=session.revision,
@@ -207,7 +212,7 @@ class FoldBotController:
         raise HTTPException(403, 'invalid_control_session')
 
     def _invalid_reason(self, session):
-        if self.active is not session:
+        if self.active is not session or not self.arbiter.owns(session.token):
             return 'session_revoked'
         if self.clock() >= session.expires_at:
             return 'browser_lease_expired'
@@ -262,9 +267,28 @@ class FoldBotController:
         if self.closing or self.active or any(s.cleanup_task and not s.cleanup_task.done() for s in self.retired.values()):
             raise HTTPException(409, 'single_operator_session_busy')
         config = copy.deepcopy(project['generation']['config']['local_control'])
-        session = _Session(secrets.token_urlsafe(32), request.project_id, request.revision,
-                           binding, config, self.backend_factory(), self.clock() + self.lease_seconds)
+        token = secrets.token_urlsafe(32)
+        if not self.arbiter.reserve(token, 'simplified'):
+            raise HTTPException(409, 'single_operator_session_busy')
+        try:
+            session = _Session(token, request.project_id, request.revision,
+                               binding, config, self.backend_factory(), self.clock() + self.lease_seconds)
+        except BaseException:
+            self.arbiter.release(token)
+            raise
         self.active = session
+        if isinstance(session.backend, ESPBackend):
+            factory = session.backend.factory
+            async def owned_transport(address):
+                socket = await factory(address)
+                if self.active is not session:
+                    session.late_socket_closed = False
+                    await asyncio.wait_for(socket.close(), .4)
+                    session.late_socket_closed = True
+                    raise ConnectionError('connection_revoked_before_transport_adoption')
+                session.opening_socket = socket
+                return socket
+            session.backend.factory = owned_transport
         self._event(session, 'connect', 'connecting_initializes_drive_power_30_percent')
         session.connect_task = asyncio.create_task(self._connect_device(session, url))
         session.monitor_task = asyncio.create_task(self._monitor(session))
@@ -407,6 +431,7 @@ class FoldBotController:
         if self.active is session:
             self.active = None
         session.phase, session.reason = 'closed', reason
+        self.arbiter.stopping(session.token)
         session.expires_at = 0.
         self.retired[session.token] = session
         while len(self.retired) > 32:
@@ -419,19 +444,63 @@ class FoldBotController:
         for task in (session.connect_task, session.monitor_task, session.command_task):
             if task and task is not current and not task.done():
                 task.cancel()
-        session.cleanup_task = asyncio.create_task(self._cleanup(session))
+        session.cleanup_task = asyncio.create_task(self._cleanup(session, current))
         await asyncio.shield(session.cleanup_task)
 
-    async def _cleanup(self, session):
+    async def _stop_backend(self, session):
+        opening, session.opening_socket = session.opening_socket, None
+        adopted = opening is not None and getattr(session.backend, 'ws', None) is opening
         try:
             response = await asyncio.wait_for(session.backend.stop_and_disconnect(), 1.2)
-            session.stop_result = copy.deepcopy(response)
-            self._event(session, 'stop_result', response.get('reason', 'stop_requested'))
+            result = copy.deepcopy(response)
+            data = result.setdefault('data', {})
+            # Injected legacy test backends may report closure through status only.
+            data.setdefault('transport_closed', session.backend.status().get('connected') is False)
+            data['physical_stop_verified'] = False
         except Exception:
-            session.stop_result = dict(ok=False, reason='stop_outcome_unknown_physical_stop_unverified',
-                                       data=dict(stop_command_sent=None, transport_closed=None,
-                                                 physical_stop_verified=False))
-            self._event(session, 'stop_result', 'stop_outcome_unknown_physical_stop_unverified')
+            result = dict(ok=False, reason='stop_outcome_unknown_physical_stop_unverified',
+                          data=dict(stop_command_sent=None, transport_closed=None, physical_stop_verified=False))
+        if opening is not None and not adopted:
+            try:
+                await asyncio.wait_for(opening.close(), .4)
+            except Exception:
+                result.update(ok=False, reason='transport_cleanup_failed_controller_blocked')
+                result['data']['transport_closed'] = False
+        return result
+
+    async def _cleanup(self, session, revoker):
+        session.stop_result = await self._stop_backend(session)
+        initial_transport_closed = session.stop_result['data']['transport_closed']
+        pending = session.connect_task is not None and session.connect_task is not revoker and not session.connect_task.done()
+        if pending:
+            done, _ = await asyncio.wait({session.connect_task}, timeout=.4)
+            pending = not done
+        if pending:
+            session.stop_result.update(ok=False, reason='connection_cleanup_pending_do_not_reconnect')
+            session.stop_result['data']['transport_closed'] = None
+            async def finish_pending():
+                await asyncio.gather(session.connect_task, return_exceptions=True)
+                # A cancelled transport factory can still return. Close the late
+                # backend before allowing either frontend to reserve a new owner.
+                session.stop_result = await self._stop_backend(session)
+                if initial_transport_closed is not True or not session.late_socket_closed:
+                    session.stop_result.update(ok=False, reason='transport_cleanup_failed_controller_blocked')
+                    session.stop_result['data']['transport_closed'] = initial_transport_closed if session.late_socket_closed else False
+                self._event(session, 'stop_result', session.stop_result.get('reason', 'stop_requested'))
+                if session.stop_result['data']['transport_closed'] is True:
+                    self.arbiter.release(session.token)
+            session.draining_task = asyncio.create_task(finish_pending())
+        elif not session.late_socket_closed:
+            session.stop_result.update(ok=False, reason='transport_cleanup_failed_controller_blocked')
+            session.stop_result['data']['transport_closed'] = False
+        elif session.backend.status().get('connected'):
+            session.stop_result = await self._stop_backend(session)
+            if initial_transport_closed is not True:
+                session.stop_result.update(ok=False, reason='transport_cleanup_failed_controller_blocked')
+                session.stop_result['data']['transport_closed'] = initial_transport_closed
+        self._event(session, 'stop_result', session.stop_result.get('reason', 'stop_requested'))
+        if session.stop_result['data']['transport_closed'] is True:
+            self.arbiter.release(session.token)
 
     async def stop(self, token):
         if token in self.retired:
