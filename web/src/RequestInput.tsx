@@ -140,8 +140,8 @@ export default function RequestInput({
     switch (reason) {
       case "done":
         return t(
-          "语音文字已填入，请检查并修改，再点击智能填写。",
-          "Speech text added. Review and edit it before using smart fill.",
+          "语音文字已填入，请检查并修改后再继续。",
+          "Speech text added. Review and edit it before continuing.",
         );
       case "cancelled":
         return t(

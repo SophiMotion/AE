@@ -1,0 +1,3 @@
+# Preserve the exact audited template bytes used by source provenance SHA-256.
+/worker/foldbot_firmware.ino -text
+/worker/foldbot_web_ui.h -text

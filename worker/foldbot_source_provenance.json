@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "template_id": "foldbot-existing-firmware-v1",
+  "source_build_id": "foldbot-20260929-sophicar-external-driver-no-limits",
+  "captured_at": "2026-10-12",
+  "sources": [
+    {
+      "path": "espkuozhanban.ino",
+      "template": "foldbot_firmware.ino",
+      "original_sha256": "f15605bbef253217a93da19155741c4eaed7b22c5a2f61e29370356e468a6175",
+      "sanitized_sha256": "ad85a5c587f878084444f35f04df26b7a0657d33c10b0b7450296bd907c871d4",
+      "original_bytes": 289588,
+      "sanitized_bytes": 289653,
+      "transformation": "AP password literal replaced with FOLDBOT_AP_PASSWORD, required local config header included, serial password print hidden. Existing whole-robot behavior otherwise retained."
+    },
+    {
+      "path": "web_ui.h",
+      "template": "foldbot_web_ui.h",
+      "original_sha256": "8c1b336d139828e52958a15cd828adc7ddd749bdaaa2c3d4ffb6e0f8822a8313",
+      "sanitized_sha256": "8c1b336d139828e52958a15cd828adc7ddd749bdaaa2c3d4ffb6e0f8822a8313",
+      "original_bytes": 1261912,
+      "sanitized_bytes": 1261912,
+      "transformation": "Byte-for-byte retained embedded whole-robot web UI; credential scan found no copied AP password."
+    }
+  ]
+}

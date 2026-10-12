@@ -12,6 +12,7 @@
     "test:sites": "node --test tests/sites-worker.test.mjs",
     "test:i18n": "node --test tests/locale-store.test.mjs",
     "test:speech": "node --test tests/speech-input.test.mjs",
+    "test:foldbot": "node --test tests/foldbot-client.test.mjs",
     "test:state": "node --test tests/draft-state.test.mjs tests/workflow-model.test.mjs tests/code-diff.test.mjs tests/intake-guide.test.mjs tests/intake-details.test.mjs tests/intake-recommendations.test.mjs tests/intake-assistant.test.mjs tests/intake-choices.test.mjs tests/intake-issues.test.mjs tests/motion-plan.test.mjs tests/motion-results.test.mjs"
   },
   "dependencies": {

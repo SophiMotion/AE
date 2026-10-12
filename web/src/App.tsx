@@ -51,11 +51,14 @@ import ProjectTools from "./ProjectTools";
 import { invalidateMotionReview } from "./motionPlan";
 import { isPublicDemo } from "./api";
 import { downloadDraft } from "./demoDownload";
-type Page = "workbench" | "library" | "settings";
+import FoldBotWorkbench from "./FoldBotWorkbench";
+type Page = "workbench" | "foldbot" | "library" | "settings";
 export default function App() {
   const { locale, setLocale } = useI18n();
 
-  const [page, setPage] = useState<Page>("workbench");
+  const [page, setPage] = useState<Page>(() =>
+    window.location.hash === "#foldbot" ? "foldbot" : "workbench",
+  );
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [draft, setDraft] = useState<Draft>(newDraft);
@@ -148,18 +151,19 @@ export default function App() {
       setRun(isPublicDemo && active?.project_id !== p.id ? null : active);
   }, []);
   const selectProject = useCallback(
-    async (p: Project) => {
+    async (p: Project, showWorkspace = true) => {
       const version = ++selectionVersion.current;
       setProject(p);
       setDraft(fromProject(p));
       setRun(null);
       setRuns([]);
       setStage(p.status === "awaiting_approval" ? 1 : p.latest_run_id ? 3 : 0);
-      setPage("workbench");
+      if (showWorkspace) setPage("workbench");
       setSidebar(false);
       setError("");
       setProjectTools(null);
       const currentUrl = new URL(window.location.href);
+      if (showWorkspace) currentUrl.hash = "";
       currentUrl.searchParams.set("project", p.id);
       window.history.replaceState(null, "", currentUrl);
       try {
@@ -195,6 +199,7 @@ export default function App() {
         await selectProject(
           all.items.find((item) => item.id === requestedProject) ||
             all.items[0],
+          false,
         );
       } else
         setDraft({
@@ -474,6 +479,7 @@ export default function App() {
           {(
             [
               { id: "workbench", label: "工作台" },
+              { id: "foldbot", label: "折叠机器人" },
               { id: "library", label: "资料库" },
               { id: "settings", label: "设置" },
             ] as { id: Page; label: string }[]
@@ -482,6 +488,9 @@ export default function App() {
               key={item.id}
               onClick={() => {
                 setPage(item.id);
+                const url = new URL(window.location.href);
+                url.hash = item.id === "foldbot" ? "foldbot" : "";
+                window.history.replaceState(null, "", url);
                 setSidebar(false);
               }}
               className={page === item.id ? "active" : ""}
@@ -489,12 +498,14 @@ export default function App() {
             >
               {item.id === "workbench" ? (
                 <House size={18} aria-hidden="true" />
+              ) : item.id === "foldbot" ? (
+                <Robot size={18} aria-hidden="true" />
               ) : item.id === "library" ? (
                 <Books size={18} aria-hidden="true" />
               ) : (
                 <GearSix size={18} aria-hidden="true" />
               )}
-              <span>{t(item.label)}</span>
+              <span>{item.id === "foldbot" ? t("折叠机器人", "FoldBot") : t(item.label)}</span>
             </button>
           ))}
         </nav>
@@ -651,7 +662,9 @@ export default function App() {
             </button>
           </div>
         )}
-        {loading ? (
+        {page === "foldbot" ? (
+          <FoldBotWorkbench />
+        ) : loading ? (
           <div className="initial-loader">
             <CircleNotch size={30} className="spin" />
             <p>

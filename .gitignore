@@ -17,3 +17,5 @@ knowledge/structure-*.json
 qa-*.png
 qa-*.json
 *.zip
+!web/public/foldbot-example.zip
+!docs/foldbot-example.zip
