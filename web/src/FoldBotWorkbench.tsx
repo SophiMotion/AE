@@ -1,22 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowRight,
   Check,
-  Code,
   DownloadSimple,
-  FileCode,
-  FolderOpen,
   Info,
   Robot,
-  ShieldCheck,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { isPublicDemo } from "./api";
 import { useI18n } from "./i18n";
 import RequestInput from "./RequestInput";
-import FoldBotControls from "./FoldBotControls";
+import FoldBotConsole from "./FoldBotConsole";
+import FoldBotSimulation, { FoldBotModelPreview } from "./FoldBotSimulation";
+import {
+  defaultFoldBotFlow,
+  normalizeFoldBotDraftFlow,
+  FOLDBOT_SOURCE_WIRING,
+  type FoldBotFlowConfig,
+} from "./foldbotFlow";
+const FoldBotFlash = lazy(() => import("./FoldBotFlash"));
+import "./foldbotFlow.css";
 import {
   draftMatchesProject,
+  mergeFoldBotSavedCache,
   foldbotApi,
   FoldBotApiError,
   restoreFoldBotDraft,
@@ -34,9 +47,10 @@ import "./foldbot.css";
 const defaults: FoldBotDraft = {
   name: "FoldBot 整机工程",
   request:
-    "基于现有折叠机器人整机模板，保留底盘、双折叠板、机械臂与嵌入网页。生成完整 ESP32 工程与 ROS 演示源码；在本机通过 AE 明确触发短点动、端位确认、折叠和机械臂单轴小步。",
+    "让折叠机器人展开两块折叠板，用机械臂完成动作，并能在网页中控制履带底盘。",
   drive_level: 10,
   drive_duration_ms: 200,
+  workflow: defaultFoldBotFlow(),
 };
 const storageKey = `ae.foldbot.draft.v1.${isPublicDemo ? "public" : "local"}`;
 function readCache(): FoldBotCachedDraft | null {
@@ -48,8 +62,10 @@ function readCache(): FoldBotCachedDraft | null {
       typeof cached.draft?.request === "string" &&
       typeof cached.draft?.drive_level === "number" &&
       typeof cached.draft?.drive_duration_ms === "number"
-    )
+    ) {
+      normalizeFoldBotDraftFlow(cached.draft.workflow);
       return cached;
+    }
   } catch {
     /* A storage failure must not prevent editing or downloading. */
   }
@@ -68,8 +84,8 @@ function downloadText(
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function FoldBotWorkbench({ onOpenConsole }: { onOpenConsole: () => void }) {
-  const { t } = useI18n();
+export default function FoldBotWorkbench() {
+  const { t, locale } = useI18n();
   const [cache] = useState(readCache);
   const [draft, setDraft] = useState<FoldBotDraft>(cache?.draft ?? defaults);
   const [draftBaseline, setDraftBaseline] = useState<FoldBotDraftBaseline>({
@@ -82,6 +98,13 @@ export default function FoldBotWorkbench({ onOpenConsole }: { onOpenConsole: () 
   const [template, setTemplate] = useState<FoldBotTemplate | null>(null);
   const [reference, setReference] = useState<FoldBotReference | null>(null);
   const [stage, setStage] = useState(0);
+  const [flashBusy, setFlashBusy] = useState(false);
+  useEffect(() => {
+    const receive = (event: Event) =>
+      setFlashBusy((event as CustomEvent).detail?.busy === true);
+    window.addEventListener("ae-foldbot-flash-busy", receive);
+    return () => window.removeEventListener("ae-foldbot-flash-busy", receive);
+  }, []);
   const [reviewed, setReviewed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -182,6 +205,18 @@ export default function FoldBotWorkbench({ onOpenConsole }: { onOpenConsole: () 
           const saved = await foldbotApi.save(snapshot, current);
           // Only server metadata advances. A save reply never replaces newer typed text.
           projectRef.current = saved;
+          if (!alive.current) {
+            try {
+              const cached = JSON.parse(
+                localStorage.getItem(storageKey) ?? "null",
+              );
+              const merged = mergeFoldBotSavedCache(cached, current, saved);
+              if (merged)
+                localStorage.setItem(storageKey, JSON.stringify(merged));
+            } catch {
+              /* Keep the existing cached draft when storage is unavailable. */
+            }
+          }
           if (alive.current) {
             setProject(saved);
             setDraftBaseline({
@@ -230,6 +265,7 @@ export default function FoldBotWorkbench({ onOpenConsole }: { onOpenConsole: () 
       isPublicDemo ||
       generationLock.current ||
       !reviewed ||
+      !draftRef.current.workflow?.wiring_reviewed ||
       !validateFoldBotDraft(draftRef.current) ||
       conflictRef.current
     )
@@ -244,7 +280,7 @@ export default function FoldBotWorkbench({ onOpenConsole }: { onOpenConsole: () 
       projectRef.current = generated;
       if (alive.current) {
         setProject(generated);
-        setStage(1);
+        setStage(3);
       }
     } catch (cause) {
       if (alive.current)
@@ -340,119 +376,113 @@ export default function FoldBotWorkbench({ onOpenConsole }: { onOpenConsole: () 
       ? exportUrl
       : null;
 
+  const flow = draft.workflow ?? defaultFoldBotFlow();
+  const changeFlow = (patch: Partial<FoldBotFlowConfig>) =>
+    updateDraft({ workflow: { ...flow, ...patch } });
+  const stepLabels = [
+    t("需求与接线", "Request & wiring"),
+    t("控制方案", "Control route"),
+    t("仿真预览", "Simulation preview"),
+    t("工程代码", "Source project"),
+    t("部署与烧录", "Deploy & flash"),
+    t("机器人控制", "Robot control"),
+  ];
+  const blocked = loading || generating || flashBusy;
+  const next = () => {
+    if (!blocked) setStage(Math.min(5, stage + 1));
+  };
   return (
-    <section className="foldbot-workbench">
-      <header className="foldbot-hero">
+    <section className="foldbot-workbench foldflow">
+      <header className="foldflow-heading">
         <div>
           <div className="foldbot-eyebrow">
-            <span className="foldbot-square" /> FOLDBOT /{" "}
-            {t("已有整机模板", "Existing robot template")}
+            <span className="foldbot-square" /> FOLDBOT / AUTO ENGINEERING
           </div>
-          <h1>{t("从需求到折叠机器人", "From a request to FoldBot")}</h1>
+          <h1>{t("把想法变成机器人动作", "From an idea to a robot action")}</h1>
           <p>
             {t(
-              "把底盘、双板与机械臂放进同一份工程。先写清需求，再核对源码，最后由你在本机明确发起操作。",
-              "Bring the chassis, folding panels and arm into one project. Define the request, review the source, then explicitly operate from your local machine.",
+              "一台折叠机器人，一份需求，从接线到控制。",
+              "One FoldBot. One request. From wiring to control.",
             )}
           </p>
-          <button type="button" className="button primary" onClick={onOpenConsole}>
-            <Robot size={20} aria-hidden="true" />
-            {t("打开原版完整控制台", "Open original full console")}
-          </button>
         </div>
-        <div className="foldbot-hero-mark" aria-hidden="true">
-          <Robot size={48} weight="duotone" />
-          <span>ESP32 ↔ AE</span>
-          <small>ROS · {t("源码演示", "source demo")}</small>
+        <div className="foldflow-summary">
+          <span className="foldflow-dot" />
+          {isPublicDemo
+            ? t("分享体验 · 无硬件连接", "Shared preview · no hardware")
+            : t("本机工作台", "Local workbench")}
+          <small role="status">{status}</small>
         </div>
       </header>
-      <div className={`foldbot-mode-strip ${isPublicDemo ? "public" : ""}`}>
-        <Info size={19} />
-        <p>
-          {isPublicDemo
-            ? t(
-                "分享展示模式：新需求只形成浏览器草稿；下方参考工程来自已有模板，不随草稿变化，也不调用硬件。",
-                "Shared showcase: new requests create browser drafts only. The template reference below stays unchanged and never calls hardware.",
-              )
-            : t(
-                "本机模式：工程生成与设备控制分开执行。ROS 仅展示生成代码；此页不安装 ROS、不烧录固件。",
-                "Local mode: source generation and device control are separate actions. ROS is source-only; this page does not install ROS or flash firmware.",
-              )}
-        </p>
-      </div>
       <nav
-        className="foldbot-steps"
+        className="foldflow-steps"
         aria-label={t("折叠机器人流程", "FoldBot workflow")}
       >
-        {[
-          t("需求与配置", "Request & configuration"),
-          t("工程与来源", "Engineering & sources"),
-          isPublicDemo
-            ? t("展示说明", "Showcase details")
-            : t("本机控制", "Local control"),
-        ].map((label, i) => (
+        {stepLabels.map((label, i) => (
           <button
-            key={i}
             type="button"
+            key={i}
+            disabled={blocked}
+            onClick={() => setStage(i)}
             className={stage === i ? "active" : ""}
             aria-current={stage === i ? "step" : undefined}
-            onClick={() => setStage(i)}
           >
-            <span>{i + 1}</span>
-            <strong>{label}</strong>
-            {i < 2 && <ArrowRight size={17} />}
+            <span>{String(i + 1).padStart(2, "0")}</span>
+            {label}
           </button>
         ))}
       </nav>
+      <div className="foldflow-context">
+        <span>FoldBot · Sophicar ESP32-S3</span>
+        <span>
+          {flow.control === "esp" ? "ESP32 + Web" : `ROS 2 ${flow.ros_version}`}
+        </span>
+        <span>
+          {t("配置随需求自动保存", "Configuration autosaves with the request")}
+        </span>
+      </div>
+      {flashBusy && (
+        <div className="foldbot-notice warning" role="status">
+          {t(
+            "USB 会话正在使用中。请先在烧录面板断开串口，再切换页面。",
+            "USB session active. Disconnect in the flash panel before navigating.",
+          )}
+        </div>
+      )}
       {error && (
         <div className="foldbot-notice warning" role="alert">
-          <WarningCircle size={21} />
-          <div>
-            <strong>
-              {t(
-                "当前操作未完成，草稿已保留",
-                "The action did not finish; your draft is kept",
-              )}
-            </strong>
-            <p>{error}</p>
-          </div>
+          <WarningCircle size={22} />
+          <p>
+            {t(
+              "操作未完成，当前草稿保留：",
+              "Action did not finish; draft retained: ",
+            )}
+            {error}
+          </p>
         </div>
       )}
       {storageFailed && (
-        <div className="foldbot-notice warning" role="alert">
+        <div className="foldbot-notice warning">
           <p>
             {t(
-              "浏览器暂存不可用。离开前请下载需求草稿。",
-              "Browser storage is unavailable. Download your draft before leaving.",
+              "浏览器暂存失败，离开前请下载草稿。",
+              "Browser storage failed. Download the draft before leaving.",
             )}
           </p>
-          <button
-            type="button"
-            className="button secondary"
-            onClick={downloadDraft}
-          >
+          <button className="button secondary" onClick={downloadDraft}>
             {t("下载草稿", "Download draft")}
           </button>
         </div>
       )}
       {conflict && (
         <div className="foldbot-notice warning">
-          <div>
-            <strong>
-              {t(
-                "服务器修订已变化，自动保存已暂停",
-                "The server revision changed; autosave paused",
-              )}
-            </strong>
-            <p>
-              {t(
-                "保留当前输入，另存为独立工程后再核对生成。",
-                "Keep these inputs and save a separate project before reviewing and generating.",
-              )}
-            </p>
-          </div>
+          <p>
+            {t(
+              "服务器版本已经变化，自动保存已暂停。",
+              "Server revision changed. Autosave paused.",
+            )}
+          </p>
           <button
-            type="button"
             className="button secondary"
             onClick={() => {
               conflictRef.current = false;
@@ -465,599 +495,614 @@ export default function FoldBotWorkbench({ onOpenConsole }: { onOpenConsole: () 
               editVersion.current++;
             }}
           >
-            {t("将此草稿另存为新工程", "Save draft as a new project")}
+            {t("保留输入，另存新工程", "Keep inputs as a new project")}
           </button>
         </div>
       )}
-
       {stage === 0 && (
-        <div className="foldbot-prd-layout">
-          <section className="foldbot-card foldbot-request">
-            <div className="foldbot-card-heading">
-              <span className="foldbot-kicker">
-                PRD / {t("你要完成的工作", "Your task")}
-              </span>
-              <span className="foldbot-save-state" role="status">
-                {status}
-              </span>
+        <>
+          <section className="foldbot-card foldflow-request">
+            <div className="foldflow-section-heading">
+              <h2>{t("想让它做什么？", "What should FoldBot do?")}</h2>
+              <label className="foldflow-project-name">
+                {t("工程", "Project")}
+                <input
+                  aria-label={t("工程名称", "Project name")}
+                  value={draft.name}
+                  maxLength={120}
+                  disabled={blocked}
+                  onChange={(e) => updateDraft({ name: e.target.value })}
+                />
+              </label>
             </div>
-            <label className="foldbot-field">
-              <span>{t("工程名称", "Project name")}</span>
-              <input
-                value={draft.name}
-                maxLength={120}
-                disabled={loading || generating}
-                onChange={(e) => updateDraft({ name: e.target.value })}
-              />
-            </label>
             <RequestInput
               value={draft.request}
               onChange={(request) => updateDraft({ request })}
-              disabled={loading || generating}
+              disabled={blocked}
+              rows={3}
               placeholder={t(
-                "描述机器人需要做什么，以及现场操作约束。",
-                "Describe what the robot should do and the on-site constraints.",
-              )}
-              rows={7}
-              hint={t(
-                "这段需求会写入 PRD。当前生成器按固定整机模板输出；自由描述不会自动改写控制逻辑或标定参数。",
-                "This request is included in the PRD. The generator uses the complete fixed template; free text does not rewrite control logic or calibration.",
+                "说一句话，或选一个起点…",
+                "Describe an action, or choose a starting point…",
               )}
               overflow={overflow}
               onOverflowChange={setOverflow}
             />
-            <div className="foldbot-config-title">
-              <h3>{t("本机底盘点动约束", "Local chassis drive limits")}</h3>
-              <span>
-                {t(
-                  "来源：此接入流程的保守默认值",
-                  "Source: conservative integration defaults",
-                )}
-              </span>
+            <div className="foldflow-suggestions">
+              {[
+                [
+                  t("展开与收拢", "Fold & unfold"),
+                  t(
+                    "展开两块折叠板，完成操作后收拢。",
+                    "Unfold both panels, then fold them after the task.",
+                  ),
+                  "fold-cycle",
+                ],
+                [
+                  t("机械臂动作", "Arm action"),
+                  t(
+                    "让机械臂按动作组运动，夹爪张开后合拢。",
+                    "Move the arm through an action group, then open and close the gripper.",
+                  ),
+                  "arm-demo",
+                ],
+                [
+                  t("底盘点动", "Chassis drive"),
+                  t(
+                    "在网页中低速点动履带底盘，松开立即停止。",
+                    "Jog the tracked chassis slowly from the web page and stop on release.",
+                  ),
+                  "chassis-demo",
+                ],
+              ].map(([label, request, group]) => (
+                <button
+                  type="button"
+                  disabled={blocked}
+                  key={group}
+                  onClick={() =>
+                    updateDraft({
+                      request,
+                      workflow: {
+                        ...flow,
+                        action_group:
+                          group as FoldBotFlowConfig["action_group"],
+                      },
+                    })
+                  }
+                >
+                  {label}
+                  <ArrowRight size={14} />
+                </button>
+              ))}
             </div>
-            <div className="foldbot-two-fields">
-              <label className="foldbot-field">
-                <span>{t("驱动档位 · 1–20", "Drive level · 1–20")}</span>
+            <details className="foldflow-detail">
+              <summary>
+                {t("查看生成依据与提示词", "Generation basis & prompt")}
+              </summary>
+              <p>
+                {t(
+                  "本流程复用已有 FoldBot 整机源码。上方文字保存为需求；动作组先用于视觉预览，不会自动改写标定或电机运动逻辑。",
+                  "This flow reuses the existing full FoldBot source. Your text becomes the requirement; action groups are visual previews and do not rewrite calibration or motor logic.",
+                )}
+              </p>
+              <pre>
+                {t(
+                  "以现有 FoldBot 模板整理需求，保留底盘、双折叠板、六轴机械臂与原网页；不猜测引脚、行程或扭矩。未核对内容标记待确认。",
+                  "Use the existing FoldBot template. Keep the chassis, both folding panels, six-joint arm and original web console. Do not invent pins, travel or torque. Mark unresolved information.",
+                )}
+              </pre>
+            </details>
+          </section>
+          <div className="foldflow-robot-grid">
+            <section className="foldbot-card foldflow-model-card">
+              <div className="foldflow-section-heading">
+                <h2>{t("你的折叠机器人", "Your folding robot")}</h2>
+                <span>{t("原版模型", "Original model")}</span>
+              </div>
+              <FoldBotModelPreview />
+              <div className="foldflow-modules">
+                <span>{t("履带底盘", "Tracked chassis")}</span>
+                <span>{t("双折叠板", "Two panels")}</span>
+                <span>{t("六轴机械臂", "Six-joint arm")}</span>
+              </div>
+            </section>
+            <section className="foldbot-card foldflow-wiring">
+              <div className="foldflow-section-heading">
+                <h2>{t("硬件连接", "Hardware connections")}</h2>
+                <span>{t("源码接线图", "Source wiring")}</span>
+              </div>
+              <div className="foldflow-board">
+                Sophicar <strong>ESP32-S3</strong>
+                <small>USB · Wi-Fi · GPIO</small>
+              </div>
+              <div className="foldflow-wires">
+                {FOLDBOT_SOURCE_WIRING.map((item) => (
+                  <details
+                    key={item.id}
+                    className={item.id === "chassis" ? "pending" : ""}
+                  >
+                    <summary>
+                      <span className="foldflow-wire-dot" />
+                      <strong>
+                        {locale === "en" ? item.labelEn : item.label}
+                      </strong>
+                      <code>{item.pins}</code>
+                    </summary>
+                    <p>
+                      {locale === "en" ? item.connectionEn : item.connection}
+                    </p>
+                  </details>
+                ))}
+              </div>
+              <p className="foldflow-hardware-note">
+                <WarningCircle size={18} />
+                {t(
+                  "GPIO35–37 与 N16R8 存储器兼容性待现场确认。此图说明源码连接，不代表已验证接线。",
+                  "GPIO35–37 / N16R8 memory compatibility needs an on-site check. This diagram describes source connections, not verified wiring.",
+                )}
+              </p>
+              <label className="foldbot-check">
+                <input
+                  type="checkbox"
+                  checked={flow.wiring_reviewed}
+                  disabled={blocked}
+                  onChange={(e) =>
+                    changeFlow({ wiring_reviewed: e.target.checked })
+                  }
+                />
+                <span>
+                  {t(
+                    "已核对模型与接线来源，待确认项保留在工程中",
+                    "Reviewed model and wiring sources; retain unresolved items in the project",
+                  )}
+                </span>
+              </label>
+            </section>
+          </div>
+        </>
+      )}
+      {stage === 1 && (
+        <section className="foldbot-card">
+          <div className="foldflow-section-heading">
+            <div>
+              <h2>{t("选择控制方案", "Choose a control route")}</h2>
+              <p>
+                {t(
+                  "硬件保持同一台 FoldBot，选择代码与部署的入口。",
+                  "Keep the same FoldBot; choose the source and deployment route.",
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="foldflow-route-grid">
+            {(["esp", "ros"] as const).map((route) => (
+              <button
+                type="button"
+                disabled={blocked}
+                aria-pressed={flow.control === route}
+                className={flow.control === route ? "selected" : ""}
+                key={route}
+                onClick={() => changeFlow({ control: route })}
+              >
+                <span>{route === "esp" ? "01 / MCU" : "02 / HOST"}</span>
+                <h3>{route === "esp" ? "ESP32 + Web" : "ROS 2"}</h3>
+                <p>
+                  {route === "esp"
+                    ? t(
+                        "生成完整 ESP32 工程，用 USB 更新固件，再连接热点控制。",
+                        "Generate full ESP32 source, update firmware over USB, then control through its hotspot.",
+                      )
+                    : t(
+                        "生成 ROS 演示源码和部署配置，保留 ESP32 作为设备端。",
+                        "Generate ROS demonstration source and deployment configuration, keeping ESP32 as the device.",
+                      )}
+                </p>
+                <strong>
+                  {flow.control === route
+                    ? t("已选择", "Selected")
+                    : t("选择方案", "Select route")}
+                </strong>
+              </button>
+            ))}
+          </div>
+          {flow.control === "ros" && (
+            <div className="foldflow-fields">
+              <label>
+                {t("部署主机", "Deployment host")}
+                <select
+                  value={flow.ros_host}
+                  onChange={(e) =>
+                    changeFlow({
+                      ros_host: e.target.value as FoldBotFlowConfig["ros_host"],
+                    })
+                  }
+                >
+                  <option value="local">{t("本机", "This computer")}</option>
+                  <option value="jetson">Jetson</option>
+                  <option value="raspberrypi">Raspberry Pi</option>
+                </select>
+              </label>
+              <label>
+                {t("ROS 版本目标", "ROS target version")}
+                <select
+                  value={flow.ros_version}
+                  onChange={(e) =>
+                    changeFlow({
+                      ros_version: e.target
+                        .value as FoldBotFlowConfig["ros_version"],
+                    })
+                  }
+                >
+                  <option value="humble">ROS 2 Humble</option>
+                  <option value="jazzy">ROS 2 Jazzy</option>
+                </select>
+              </label>
+              <label>
+                {t("通信串口（可选）", "Communication serial port (optional)")}
+                <input
+                  value={flow.ros_serial}
+                  placeholder="COM3 / /dev/ttyUSB0"
+                  maxLength={120}
+                  onChange={(e) => changeFlow({ ros_serial: e.target.value })}
+                />
+                <small>
+                  {t(
+                    "仅配置，未连接。现有 FoldBot 控制使用 Wi-Fi。",
+                    "Configuration only, disconnected. Existing FoldBot control uses Wi-Fi.",
+                  )}
+                </small>
+              </label>
+            </div>
+          )}
+          <details className="foldflow-detail">
+            <summary>
+              {t("点动参数与部署说明", "Jog settings & deployment details")}
+            </summary>
+            <div className="foldflow-fields">
+              <label>
+                {t("底盘驱动档位", "Chassis drive level")}
                 <input
                   type="number"
                   min={1}
                   max={20}
-                  step={1}
                   value={draft.drive_level}
-                  disabled={loading || generating}
                   onChange={(e) =>
                     updateDraft({ drive_level: Number(e.target.value) })
                   }
                 />
-                <small>
-                  {t(
-                    "协议档位，不代表实测速度。",
-                    "Protocol level, not measured speed.",
-                  )}
-                </small>
               </label>
-              <label className="foldbot-field">
-                <span>{t("单次时长 · 1–2000 ms", "Duration · 1–2000 ms")}</span>
+              <label>
+                {t("单次点动时长（毫秒）", "Jog duration (ms)")}
                 <input
                   type="number"
                   min={1}
                   max={2000}
-                  step={1}
                   value={draft.drive_duration_ms}
-                  disabled={loading || generating}
                   onChange={(e) =>
                     updateDraft({ drive_duration_ms: Number(e.target.value) })
                   }
                 />
-                <small>
-                  {t(
-                    "默认 200 ms，每次操作单独触发。",
-                    "Default 200 ms; every move is explicit.",
-                  )}
-                </small>
               </label>
             </div>
-            {!valid && (
-              <p className="foldbot-error">
-                {t(
-                  "请填写名称和需求，并把驱动档位、时长设为范围内的整数。",
-                  "Enter a name and request, then use whole numbers within the drive and duration limits.",
-                )}
-              </p>
-            )}
-            <div className="foldbot-footer-actions">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={downloadDraft}
-              >
-                <DownloadSimple size={18} />
-                {t("下载需求草稿", "Download draft")}
-              </button>
-              <button
-                type="button"
-                className="button primary"
-                disabled={!valid || loading}
-                onClick={() => setStage(1)}
-              >
-                {t("下一步：核对工程", "Next: review engineering")}
-                <ArrowRight size={18} />
-              </button>
-            </div>
-          </section>
-          <aside className="foldbot-card foldbot-scope">
-            <span className="foldbot-kicker">
-              {t("整机范围", "Complete robot scope")}
-            </span>
-            <h2>{t("保留已有能力", "Retain the existing robot")}</h2>
-            <p className="foldbot-caption">
-              {t(
-                "复用完整固件与嵌入网页，生成时保留这些模块。",
-                "Reuse the complete firmware and embedded web page, retaining these modules.",
-              )}
-            </p>
-            <div className="foldbot-module-list">
-              {[
-                [
-                  t("底盘", "Chassis"),
-                  t(
-                    "短点动、停止与驱动限制",
-                    "Short drive, stop and drive limits",
-                  ),
-                ],
-                [
-                  t("双折叠板", "Dual panels"),
-                  t(
-                    "两板端位确认、折叠与展开",
-                    "Panel endpoint confirmation, fold and unfold",
-                  ),
-                ],
-                [
-                  t("机械臂", "Robot arm"),
-                  t(
-                    "六轴原始单位小步控制",
-                    "Six-joint small steps in raw units",
-                  ),
-                ],
-                [
-                  t("嵌入网页", "Embedded web UI"),
-                  t("完整保留 web_ui.h", "Complete web_ui.h retained"),
-                ],
-                [
-                  t("ROS 演示包", "ROS demo package"),
-                  t(
-                    "生成代码，默认无运动输出",
-                    "Generated code; no motion output by default",
-                  ),
-                ],
-              ].map(([label, description]) => (
-                <div key={label}>
-                  <Check size={17} />
-                  <div>
-                    <strong>{label}</strong>
-                    <small>{description}</small>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="foldbot-inline-boundary">
-              <Info size={19} />
-              <p>
-                {t(
-                  "板卡、接线、行程和零点需要现场核对，不从需求文字猜测。",
-                  "Board, wiring, travel and zero points need on-site checks; they are not inferred from request text.",
-                )}
-              </p>
-            </div>
-          </aside>
-        </div>
-      )}
-
-      {stage === 1 && (
-        <div className="foldbot-engineering">
-          <section className="foldbot-card foldbot-review">
-            <div className="foldbot-card-heading">
-              <div>
-                <span className="foldbot-kicker">
-                  {isPublicDemo ? "REFERENCE" : "REVIEW"} /{" "}
-                  {t("生成前核对", "Before generation")}
-                </span>
-                <h2>
-                  {isPublicDemo
-                    ? t(
-                        "已有模板参考工程",
-                        "Existing-template reference project",
-                      )
-                    : t(
-                        "把需求与源码来源对齐",
-                        "Review the request against the source",
-                      )}
-                </h2>
-              </div>
-              <ShieldCheck size={29} />
-            </div>
-            <div className="foldbot-review-columns">
-              <div>
-                <h3>
-                  {isPublicDemo
-                    ? (reference?.project.name ??
-                      t("正在读取参考工程", "Loading reference"))
-                    : draft.name}
-                </h3>
-                <p>
-                  {isPublicDemo ? reference?.project.request : draft.request}
-                </p>
-                <div className="foldbot-review-meta">
-                  <span>
-                    {t("档位", "Level")}{" "}
-                    {isPublicDemo
-                      ? shownProject?.drive_level
-                      : draft.drive_level}
-                  </span>
-                  <span>
-                    {isPublicDemo
-                      ? shownProject?.drive_duration_ms
-                      : draft.drive_duration_ms}{" "}
-                    ms
-                  </span>
-                  <span>{t("完整整机模板", "Complete robot template")}</span>
-                </div>
-              </div>
-              <div>
-                <h3>{t("实现与边界", "Implementation & boundaries")}</h3>
-                <ul className="foldbot-review-list">
-                  <li>
-                    {t(
-                      "复用 espkuozhanban.ino 与 web_ui.h，保留来源哈希并脱敏 AP 口令。",
-                      "Reuse espkuozhanban.ino and web_ui.h, retain source hashes and redact the AP password.",
-                    )}
-                  </li>
-                  <li>
-                    {t(
-                      "输出 PRD、配置、完整固件、ROS 演示与清单；生成不等于编译、烧录或验收。",
-                      "Output the PRD, configuration, full firmware, ROS demo and manifest. Generation does not mean build, flashing or acceptance.",
-                    )}
-                  </li>
-                  <li>
-                    {t(
-                      "当前模板禁用限位。N16R8 存储与 GPIO35–38 接线兼容性、行程及参考点待现场确认。",
-                      "Limits are disabled in the template. N16R8 memory/GPIO35–38 compatibility, travel and reference points require on-site confirmation.",
-                    )}
-                  </li>
-                </ul>
-              </div>
-            </div>
-            {isPublicDemo ? (
-              <div className="foldbot-notice">
-                <Info size={20} />
-                <p>
-                  {t(
-                    "这是预先生成的模板参考。你在第 1 步填写的草稿只保存在浏览器，不会生成新的固件或改变本记录。",
-                    "This template reference was generated in advance. Your step-1 draft stays in the browser and does not generate new firmware or alter this record.",
-                  )}
-                </p>
-              </div>
-            ) : (
-              <div className="foldbot-review-action">
-                <label className="foldbot-check">
-                  <input
-                    type="checkbox"
-                    checked={reviewed}
-                    disabled={generating || loading || !valid}
-                    onChange={(e) => setReviewed(e.target.checked)}
-                  />
-                  <span>
-                    {t(
-                      "我已核对本页需求、模板来源与未确认项；按这些约束生成当前修订。",
-                      "I reviewed this request, the template sources and unresolved items; generate this revision with these constraints.",
-                    )}
-                  </span>
-                </label>
-                <button
-                  type="button"
-                  className="button primary"
-                  disabled={
-                    !reviewed || !valid || loading || generating || conflict
-                  }
-                  onClick={() => void generate()}
-                >
-                  <Code size={19} />
-                  {generating
-                    ? t("正在生成…", "Generating…")
-                    : t("确认并生成工程", "Confirm & generate")}
-                </button>
-              </div>
-            )}
-          </section>
-          <section className="foldbot-card">
-            <div className="foldbot-card-heading">
-              <div>
-                <span className="foldbot-kicker">
-                  {t("工程快照", "Project snapshot")}
-                </span>
-                <h2>
-                  {generation
-                    ? t("文件、用途与来源", "Files, purpose & provenance")
-                    : t(
-                        "核对后生成完整工程",
-                        "Review to generate the full project",
-                      )}
-                </h2>
-              </div>
-              {safeExport && (
-                <a className="button secondary" href={safeExport} download>
-                  <DownloadSimple size={18} />
-                  {isPublicDemo
-                    ? t("下载参考工程", "Download reference")
-                    : t("下载工程 ZIP", "Download project ZIP")}
-                </a>
-              )}
-            </div>
-            {generation ? (
-              <>
-                <div className="foldbot-evidence">
-                  <span className="source">
-                    <Check size={16} />
-                    {t("源码已生成", "Source generated")}
-                  </span>
-                  {[
-                    t("未编译", "Not compiled"),
-                    t("未烧录", "Not flashed"),
-                    t("ROS 未执行", "ROS not executed"),
-                    t("实物未验收", "Hardware not verified"),
-                  ].map((label) => (
-                    <span key={label}>{label}</span>
-                  ))}
-                </div>
-                <div className="foldbot-snapshot-meta">
-                  <span>
-                    {isPublicDemo
-                      ? t("参考修订", "Reference revision")
-                      : t("生成修订", "Generated revision")}{" "}
-                    {generation.revision}
-                  </span>
-                  <span>
-                    {files.length} {t("个文件", "files")}
-                  </span>
-                  {!isPublicDemo && !current && (
-                    <strong>
-                      {t(
-                        "当前需求已变化，请重新生成",
-                        "Request changed; regenerate",
-                      )}
-                    </strong>
-                  )}
-                </div>
-                <div className="foldbot-file-browser">
-                  <div
-                    className="foldbot-file-tree"
-                    aria-label={t("工程文件", "Project files")}
-                  >
-                    {files.map((file) => (
-                      <button
-                        type="button"
-                        key={file.path}
-                        className={file.path === selectedPath ? "active" : ""}
-                        onClick={() => setFilePath(file.path)}
-                      >
-                        <FileCode size={17} />
-                        <span>
-                          <strong>{file.path}</strong>
-                          <small>
-                            {file.type} · {file.bytes.toLocaleString()} B
-                          </small>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="foldbot-file-preview">
-                    <div className="foldbot-preview-heading">
-                      <div>
-                        <strong>{selectedPath}</strong>
-                        <small>
-                          {
-                            files.find((file) => file.path === selectedPath)
-                              ?.purpose
-                          }
-                        </small>
-                      </div>
-                      {preview && (
-                        <button
-                          className="button ghost"
-                          type="button"
-                          aria-label={t(
-                            "下载当前文件",
-                            "Download selected file",
-                          )}
-                          onClick={() =>
-                            downloadText(
-                              preview.path.split("/").at(-1) ??
-                                "foldbot-file.txt",
-                              preview.content,
-                              "text/plain;charset=utf-8",
-                            )
-                          }
-                        >
-                          <DownloadSimple size={18} />
-                        </button>
-                      )}
-                    </div>
-                    <pre
-                      tabIndex={0}
-                      aria-label={t("文件内容预览", "File contents")}
-                    >
-                      {previewLoading
-                        ? t("正在读取文件…", "Loading file…")
-                        : previewError ||
-                          preview?.content.slice(0, 24000) ||
-                          t(
-                            "参考包尚未包含此文件的文本预览，可下载完整工程查看。",
-                            "A text preview is not included for this file. Download the project to inspect it.",
-                          )}
-                    </pre>
-                    {preview && preview.content.length > 24000 && (
-                      <p className="foldbot-preview-truncated">
-                        {t(
-                          "预览显示前 24,000 个字符；下载当前文件或 ZIP 获取完整内容。",
-                          "Preview shows the first 24,000 characters. Download this file or ZIP for the complete source.",
-                        )}
-                      </p>
-                    )}
-                    {preview && (
-                      <div className="foldbot-file-hash">
-                        SHA-256 <code>{preview.sha256}</code>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <details className="foldbot-sources">
-                  <summary>
-                    {t(
-                      "查看来源与版本记录",
-                      "Inspect sources & version record",
-                    )}
-                  </summary>
-                  <p>
-                    {t("生成快照哈希", "Generated snapshot hash")}:{" "}
-                    <code>{generation.sha256}</code>
-                  </p>
-                  {(
-                    generation.source_provenance ??
-                    template?.source_provenance ??
-                    []
-                  ).map((source) => (
-                    <div key={source.path}>
-                      <strong>{source.path}</strong>
-                      <small>
-                        {t("原始来源 SHA-256", "Original source SHA-256")}
-                      </small>
-                      <code>{source.original_sha256}</code>
-                      <small>
-                        {t("脱敏源码 SHA-256", "Sanitized source SHA-256")}
-                      </small>
-                      <code>{source.sanitized_sha256}</code>
-                      <p>{source.transformation}</p>
-                    </div>
-                  ))}
-                </details>
-              </>
-            ) : (
-              <div className="foldbot-empty">
-                <FolderOpen size={42} />
-                <div>
-                  <h3>
-                    {t("还没有当前工程的生成记录", "No generated snapshot yet")}
-                  </h3>
-                  <p>
-                    {t(
-                      "核对上方实现说明后，生成完整源码。生成结果会绑定需求修订并列出来源。",
-                      "Review the implementation above, then generate the complete source. The snapshot will bind the request revision and list its sources.",
-                    )}
-                  </p>
-                </div>
-              </div>
-            )}
-          </section>
-          <div className="foldbot-footer-actions">
-            <button
-              type="button"
-              className="button secondary"
-              onClick={() => setStage(0)}
-            >
-              {t("返回修改需求", "Edit request")}
-            </button>
-            <button
-              type="button"
-              className="button primary"
-              onClick={() => setStage(2)}
-            >
-              {isPublicDemo
-                ? t("查看展示说明", "Showcase details")
-                : t("进入本机控制", "Open local control")}
-              <ArrowRight size={18} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {stage === 2 &&
-        (isPublicDemo ? (
-          <section className="foldbot-card foldbot-public-explain">
-            <span className="foldbot-kicker">
-              {t("分享版能力边界", "Shared showcase boundaries")}
-            </span>
-            <h2>
-              {t(
-                "展示工程，保留真实边界",
-                "Explore the project with clear boundaries",
-              )}
-            </h2>
             <p>
               {t(
-                "你可以填写和下载自己的 PRD 草稿，浏览已有模板参考工程、源码与来源记录。本页面不连接 ESP32，也不执行 ROS、编译、烧录或运动控制。",
-                "Write and download your own PRD draft, and inspect the existing-template project, source and provenance. This page does not connect to ESP32, execute ROS, compile, flash or control motion.",
+                "档位不代表实测速度。ROS 程序部署到电脑或 Jetson，不通过 COM 口烧录；串口可作为通信参数。主机与 ROS 版本选择不是环境已验证。",
+                "Drive level is not measured speed. ROS software is deployed to a computer or Jetson, not flashed through a COM port. A serial port can be a communication setting; selecting a host/version does not verify the environment.",
               )}
             </p>
-            <div className="foldbot-public-grid">
-              <article>
-                <span>01</span>
-                <h3>{t("需求属于你", "Your own request")}</h3>
-                <p>
-                  {t(
-                    "浏览器自动保存当前草稿。下载 JSON 可带回本机继续核对。",
-                    "Your draft is saved in this browser. Download the JSON to review it locally.",
-                  )}
-                </p>
-              </article>
-              <article>
-                <span>02</span>
-                <h3>
-                  {t("源码来自已有模板", "Source from the existing template")}
-                </h3>
-                <p>
-                  {t(
-                    "参考工程不随访客输入变化。来源与哈希可追溯，不代表 AI 从零开发整机。",
-                    "Visitor edits do not change the reference. Source hashes preserve provenance; this is not a claim of an AI-built robot from scratch.",
-                  )}
-                </p>
-              </article>
-              <article>
-                <span>03</span>
-                <h3>
-                  {t("控制回到本机与现场", "Control stays local and on site")}
-                </h3>
-                <p>
-                  {t(
-                    "本机服务经核对生成后才开放显式连接。设备反馈与物理验收分别确认。",
-                    "The local service permits an explicit connection after review and generation. Device feedback and physical acceptance are checked separately.",
-                  )}
-                </p>
-              </article>
+          </details>
+        </section>
+      )}
+      {stage === 2 && (
+        <FoldBotSimulation
+          actionGroup={flow.action_group}
+          onActionGroupChange={(group) => changeFlow({ action_group: group })}
+        />
+      )}
+      {stage === 3 && (
+        <section className="foldbot-card foldflow-code">
+          <div className="foldflow-section-heading">
+            <div>
+              <h2>
+                {t(
+                  "生成属于这份需求的工程",
+                  "Generate a project for this request",
+                )}
+              </h2>
+              <p>
+                {t(
+                  "需求、接线来源、动作组选择和部署配置记录在同一修订。",
+                  "The request, wiring sources, action group selection and deployment configuration share one revision.",
+                )}
+              </p>
             </div>
-            <div className="foldbot-button-row">
+            <span>{flow.control === "esp" ? "ESP32" : "ROS 2"}</span>
+          </div>
+          <div className="foldflow-code-summary">
+            <strong>{draft.name}</strong>
+            <p>{draft.request}</p>
+            <span>
+              {flow.wiring_reviewed
+                ? t("接线来源已核对", "Wiring sources reviewed")
+                : t(
+                    "请先核对第 1 步的模型与接线",
+                    "Review the model and wiring in step 1",
+                  )}
+            </span>
+          </div>
+          {isPublicDemo ? (
+            <div className="foldbot-notice">
+              <Info size={20} />
+              <p>
+                {t(
+                  "以下为已有参考工程，不是用当前草稿新生成的源码。可下载当前配置，在本机继续生成。",
+                  "The files below are an existing reference, not newly generated from your draft. Download your configuration to continue locally.",
+                )}
+              </p>
+            </div>
+          ) : (
+            <div className="foldflow-generate">
+              <label className="foldbot-check">
+                <input
+                  type="checkbox"
+                  checked={reviewed}
+                  disabled={blocked || !valid || !flow.wiring_reviewed}
+                  onChange={(e) => setReviewed(e.target.checked)}
+                />
+                {t(
+                  "按当前需求、配置和待确认项生成源码",
+                  "Generate source with the current request, configuration and unresolved items",
+                )}
+              </label>
               <button
-                type="button"
                 className="button primary"
-                onClick={downloadDraft}
+                disabled={
+                  blocked ||
+                  !valid ||
+                  !reviewed ||
+                  !flow.wiring_reviewed ||
+                  conflict
+                }
+                onClick={() => void generate()}
               >
-                <DownloadSimple size={18} />
-                {t("下载我的需求草稿", "Download my request draft")}
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setStage(1)}
-              >
-                {t("返回参考工程", "Back to reference")}
+                {generating
+                  ? t("正在生成…", "Generating…")
+                  : t("生成完整工程", "Generate complete project")}
               </button>
             </div>
-          </section>
-        ) : (
-          <FoldBotControls
-            project={project}
-            ready={current && !generating && !saving}
-          />
-        ))}
+          )}
+          {generation && (
+            <>
+              <div className="foldbot-evidence">
+                <span className="source">
+                  {t("源码已生成", "Source generated")}
+                </span>
+                <span>{t("构建待验证", "Build unverified")}</span>
+                <span>{t("ROS 未运行", "ROS not executed")}</span>
+                <span>{t("实物未验收", "Hardware unverified")}</span>
+              </div>
+              <p>
+                {isPublicDemo
+                  ? t("参考修订", "Reference revision")
+                  : t("生成修订", "Generated revision")}{" "}
+                {generation.revision} · {files.length} {t("个文件", "files")}
+                {!isPublicDemo && !current && (
+                  <strong className="foldflow-stale">
+                    {" "}
+                    ·{" "}
+                    {t("需求已变化，请重新生成", "Request changed; regenerate")}
+                  </strong>
+                )}
+              </p>
+              <div className="foldbot-file-browser">
+                <div
+                  className="foldbot-file-tree"
+                  aria-label={t("工程文件", "Project files")}
+                >
+                  {files.map((file) => (
+                    <button
+                      type="button"
+                      key={file.path}
+                      className={selectedPath === file.path ? "active" : ""}
+                      onClick={() => setFilePath(file.path)}
+                    >
+                      <code>{file.path}</code>
+                      <small>
+                        {file.type} · {file.bytes} B
+                      </small>
+                    </button>
+                  ))}
+                </div>
+                <div className="foldbot-code-preview">
+                  <div className="foldflow-file-title">
+                    <code>{selectedPath}</code>
+                    {preview && (
+                      <button
+                        className="button secondary"
+                        onClick={() =>
+                          downloadText(
+                            preview.path.split("/").at(-1) ?? "source.txt",
+                            preview.content,
+                            "text/plain;charset=utf-8",
+                          )
+                        }
+                      >
+                        <DownloadSimple size={16} />
+                        {t("下载文件", "Download file")}
+                      </button>
+                    )}
+                  </div>
+                  <p>{files.find((f) => f.path === selectedPath)?.purpose}</p>
+                  <pre
+                    tabIndex={0}
+                    aria-label={t("文件内容预览", "File contents")}
+                  >
+                    {previewLoading
+                      ? t("正在读取…", "Loading…")
+                      : previewError ||
+                        preview?.content.slice(0, 24000) ||
+                        t(
+                          "此文件无文本预览，请下载完整工程。",
+                          "No text preview; download the complete project.",
+                        )}
+                  </pre>
+                  {preview && (
+                    <small className="foldflow-hash">
+                      SHA-256 {preview.sha256}
+                    </small>
+                  )}
+                </div>
+              </div>
+              <details className="foldflow-detail">
+                <summary>
+                  {t(
+                    "文件来源、构建与版本说明",
+                    "Sources, build & revision details",
+                  )}
+                </summary>
+                <p>
+                  {t(
+                    "当前复用完整整机模板，生成不是从文字自动编写新的运动控制器。动作预览不会被当作实机动作下发。",
+                    "The current generator reuses the full robot template. It does not write a new motion controller from text or transmit visual previews as physical actions.",
+                  )}
+                </p>
+                <code className="foldflow-hash">{generation.sha256}</code>
+                {(
+                  generation.source_provenance ??
+                  template?.source_provenance ??
+                  []
+                ).map((source) => (
+                  <p key={source.path}>
+                    {source.path}
+                    <code className="foldflow-hash">
+                      {source.sanitized_sha256}
+                    </code>
+                  </p>
+                ))}
+              </details>
+            </>
+          )}
+          {!generation && (
+            <p className="foldflow-empty">
+              {t(
+                "完成上方核对后，文件名、类型、用途与目录会显示在这里。",
+                "After review, generated filenames, types, purposes and directories will appear here.",
+              )}
+            </p>
+          )}
+          {safeExport && (
+            <a className="button secondary" href={safeExport} download>
+              <DownloadSimple size={18} />
+              {isPublicDemo
+                ? t("下载参考工程 ZIP", "Download reference ZIP")
+                : t("下载当前工程 ZIP", "Download current project ZIP")}
+            </a>
+          )}
+        </section>
+      )}
+      {stage === 4 && (
+        <>
+          {flow.control === "ros" && (
+            <section className="foldbot-card foldflow-ros">
+              <h2>{t("ROS 部署接口", "ROS deployment interface")}</h2>
+              <div className="foldflow-fields">
+                <p>
+                  {t("主机", "Host")}
+                  <strong>{flow.ros_host}</strong>
+                </p>
+                <p>
+                  {t("版本", "Version")}
+                  <strong>ROS 2 {flow.ros_version}</strong>
+                </p>
+                <p>
+                  {t("通信串口", "Communication port")}
+                  <strong>
+                    {flow.ros_serial ||
+                      (isPublicDemo
+                        ? t(
+                            "示例 /dev/ttyUSB0（未连接）",
+                            "Example /dev/ttyUSB0 (disconnected)",
+                          )
+                        : t("未指定", "Not specified"))}
+                  </strong>
+                </p>
+              </div>
+              <p>
+                {t(
+                  "下载第 4 步工程，在目标主机按 deployment.md 配置。此处展示 ROS 源码与部署参数；尚未运行 ROS 或通过 ROS 控制实物。ESP32 设备端仍可在下方更新固件。",
+                  "Download the step-4 project and follow deployment.md on the target host. This shows ROS source and deployment settings; ROS execution and real control are unverified. ESP32 firmware can still be updated below.",
+                )}
+              </p>
+            </section>
+          )}
+          <Suspense
+            fallback={
+              <p>{t("正在加载 USB 烧录工具…", "Loading USB flasher…")}</p>
+            }
+          >
+            <FoldBotFlash
+              projectId={project?.id ?? null}
+              revision={project?.revision ?? null}
+              generationId={project?.generation?.id ?? null}
+              sourceHash={project?.generation?.sha256 ?? null}
+              current={current && !draftDirty && !saving}
+            />
+          </Suspense>
+        </>
+      )}
+      {stage === 5 && (
+        <>
+          <div className="foldflow-control-context">
+            <Robot size={22} />
+            <div>
+              <strong>{draft.name}</strong>
+              <p>
+                {t(
+                  "连接 ESP 热点后，在下方原版控制台核验并连接。这里使用板上现有固件，生成源码或预览动作不会自动发送到机器人。",
+                  "After joining the ESP hotspot, check and connect in the original console below. It uses the firmware on the board; generated source and visual actions are not automatically sent.",
+                )}
+              </p>
+            </div>
+          </div>
+          <FoldBotConsole onBack={() => setStage(4)} />
+        </>
+      )}
+      {!valid && (
+        <p className="foldflow-stale" role="alert">
+          {t(
+            "请检查名称、需求、参数范围或串口格式；无效配置不会保存或生成。",
+            "Check the name, request, parameter ranges or serial format. Invalid configuration cannot save or generate.",
+          )}
+        </p>
+      )}
+      <footer className="foldflow-footer">
+        <button
+          className="button secondary"
+          disabled={blocked}
+          onClick={downloadDraft}
+        >
+          <DownloadSimple size={18} />
+          {t("下载需求 JSON", "Download request JSON")}
+        </button>
+        <div>
+          <button
+            className="button secondary"
+            disabled={stage === 0 || blocked}
+            onClick={() => setStage(stage - 1)}
+          >
+            {t("上一步", "Back")}
+          </button>
+          <button
+            className="button primary"
+            disabled={stage === 5 || blocked || !valid}
+            onClick={next}
+          >
+            {stage < 5
+              ? `${t("下一步", "Next")} · ${stepLabels[stage + 1]}`
+              : t("当前为控制步骤", "Control step")}
+            <ArrowRight size={18} />
+          </button>
+        </div>
+      </footer>
     </section>
   );
 }

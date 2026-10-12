@@ -51,6 +51,26 @@ def json_text(value):
     return json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + '\n'
 
 
+class FoldBotFlowConfig(BaseModel):
+    """Frozen UI choices, not executable transport or physical acceptance."""
+    model_config = ConfigDict(extra='forbid')
+    schema_version: int = Field(ge=1, le=1, strict=True)
+    robot: Literal['foldbot']
+    control: Literal['esp', 'ros']
+    wiring_reviewed: StrictBool
+    ros_host: Literal['local', 'jetson', 'raspberrypi']
+    ros_version: Literal['humble', 'jazzy']
+    ros_serial: str = Field(max_length=120, strict=True)
+    action_group: Literal['fold-cycle', 'arm-demo', 'chassis-demo']
+
+    @field_validator('ros_serial')
+    @classmethod
+    def serial_identifier(cls, value):
+        if not re.fullmatch(r'(?:|COM[1-9][0-9]{0,3}|/dev/(?:ttyUSB[0-9]{1,3}|ttyACM[0-9]{1,3}|cu\.[A-Za-z0-9_.-]{1,80}))', value):
+            raise ValueError('请输入 COM3、/dev/ttyUSB0 或 /dev/cu.usbserial 等串口标识，未知时留空。')
+        return value
+
+
 class ProjectInput(BaseModel):
     model_config = ConfigDict(extra='forbid')
     name: str = Field(min_length=1, max_length=120)
@@ -58,6 +78,14 @@ class ProjectInput(BaseModel):
     drive_level: int = Field(default=10, ge=1, le=20, strict=True)
     drive_duration_ms: int = Field(default=200, ge=1, le=2000, strict=True)
     reviewed: StrictBool = False
+    workflow: FoldBotFlowConfig | None = None
+
+    @field_validator('workflow', mode='before')
+    @classmethod
+    def workflow_not_null(cls, value):
+        if value is None:
+            raise ValueError('流程配置不能为 null；旧客户端可以省略该字段。')
+        return value
 
     @field_validator('name', 'request')
     @classmethod
@@ -86,8 +114,11 @@ class GenerateInput(BaseModel):
 
 
 def specification(project):
-    return {key: project[key] for key in
-            ('id', 'name', 'request', 'revision', 'drive_level', 'drive_duration_ms')}
+    value = {key: project[key] for key in
+             ('id', 'name', 'request', 'revision', 'drive_level', 'drive_duration_ms')}
+    if project.get('workflow') is not None:
+        value['workflow'] = deepcopy(project['workflow'])
+    return value
 
 
 class FoldBotProjects:
@@ -144,7 +175,7 @@ class FoldBotProjects:
         body = body if isinstance(body, ProjectInput) else ProjectInput.model_validate(body)
         stamp = now()
         project = {
-            'id': uid(), **body.model_dump(), 'reviewed': False, 'revision': 1,
+            'id': uid(), **body.model_dump(exclude_none=True), 'reviewed': False, 'revision': 1,
             'created_at': stamp, 'updated_at': stamp, 'generation': None,
             'warnings': list(WARNINGS),
         }
@@ -159,8 +190,9 @@ class FoldBotProjects:
             project = self.get(project_id)
             if body.revision != project['revision']:
                 raise HTTPException(409, '工程已更新，请刷新后重新核对当前修订。')
-            values = body.model_dump(exclude={'revision', 'reviewed'})
-            if all(project[key] == value for key, value in values.items()):
+            values = body.model_dump(exclude={'revision', 'reviewed'}, exclude_none=True)
+            # Legacy clients must preserve a new client's workflow rather than erase it.
+            if all(project.get(key) == value for key, value in values.items()):
                 return project
             project.update(**values, revision=project['revision'] + 1,
                            reviewed=False, generation=None, updated_at=now())
@@ -211,8 +243,20 @@ class FoldBotProjects:
         add('config/foldbot_config.json', 'json', '当前 PRD 修订和本机控制边界；不覆盖固件或 NVS 标定。', json_text(config))
         add('provenance.json', 'json', '原始及脱敏模板的 SHA-256 与变换记录。', json_text(provenance))
         add('prd.json', 'json', '生成时冻结的需求修订。', json_text(specification(project)))
+        if project.get('workflow') is not None:
+            flow = project['workflow']
+            add('config/workflow.json', 'json', '当前控制方案、ROS 主机、版本、串口及预览动作组；不自动执行。', json_text(flow))
+            add('config/wiring.json', 'json', '整机源码中的固定引脚与待核对事项；不是实物接线验收。', json_text(self._wiring(flow)))
+            add('config/action_preview.json', 'json', '只用于浏览器视觉预览；没有实机运动目标或传感器测量。', json_text({
+                'schema_version': 1, 'robot': 'foldbot', 'action_group': flow['action_group'],
+                'visual_only': True, 'hardware_target': None, 'gazebo_executed': False,
+                'measured_angle_deg': None, 'measured_speed': None, 'measured_torque_nm': None,
+                'progress_range': [0, 1], 'automatic_motion': False,
+            }))
+            add('ros2/foldbot_demo/foldbot_demo/workflow.json', 'json', 'ROS 离线演示读取的本修订配置；串口仅作为待确认配置打印。', json_text(flow))
+            add('deployment.md', 'markdown', '本修订部署目标及串口用途说明；ROS 不通过 COM 烧录。', self._deployment(project))
         add('ros2/foldbot_demo/foldbot_demo/demo.py', 'python', '未运行的 ROS 演示；默认离线打印，无设备传输。',
-            (TEMPLATE_ROOT / 'foldbot_ros_demo.py').read_text(encoding='utf-8'))
+            self._ros_demo(project))
         add('ros2/foldbot_demo/foldbot_demo/__init__.py', 'python', 'ROS 演示 Python 包。',
             '"""Untested generated FoldBot demo; no hardware acceptance."""\n')
         add('ros2/foldbot_demo/resource/foldbot_demo', 'ros-resource', 'ament 包索引标记。', '')
@@ -220,7 +264,9 @@ class FoldBotProjects:
             '[develop]\nscript_dir=$base/lib/foldbot_demo\n[install]\ninstall_scripts=$base/lib/foldbot_demo\n')
         add('ros2/foldbot_demo/setup.py', 'python', 'ROS 演示包安装描述；没有自动执行步骤。',
             'from setuptools import setup\n\nsetup(\n    name="foldbot_demo", version="0.0.1",\n'
-            '    packages=["foldbot_demo"],\n    data_files=[\n'
+            '    packages=["foldbot_demo"],\n' +
+            ('    package_data={"foldbot_demo": ["workflow.json"]},\n' if project.get('workflow') is not None else '') +
+            '    data_files=[\n'
             '        ("share/ament_index/resource_index/packages", ["resource/foldbot_demo"]),\n'
             '        ("share/foldbot_demo", ["package.xml"]),\n    ],\n'
             '    install_requires=["setuptools"], zip_safe=True,\n'
@@ -244,6 +290,72 @@ class FoldBotProjects:
                     'self_hash_note': 'manifest.json excludes itself to avoid recursive hashing; its hash is in generation.files.'}
         add('manifest.json', 'json', '所有交付文件的用途、类型及 SHA-256（自身哈希在生成记录）。', json_text(manifest))
         return files
+
+    def _wiring(self, flow):
+        return {
+            'schema_version': 1, 'source_build': 'foldbot-20260929-sophicar-external-driver-no-limits',
+            'source_only': True, 'hardware_verified': False,
+            'user_reviewed_source_information': flow['wiring_reviewed'],
+            'fold_axes': [
+                {'axis': 1, 'dir_gpio': 3, 'step_gpio': 8, 'enable_gpio': 10},
+                {'axis': 2, 'dir_gpio': 4, 'step_gpio': 5, 'enable_gpio': 9},
+            ],
+            'driver': {'model': 'unconfirmed_external_optocoupled_driver',
+                       'inputs': {'DIR+': 'DIR GPIO', 'PUL+': 'STEP GPIO', 'ENA+': 'EN GPIO'},
+                       'negative_inputs': 'logic_GND', 'enable_level': 0,
+                       'electrical_compatibility_verified': False},
+            'arm': {'tx_gpio': 6, 'rx_gpio': 7, 'bridge': 'BusLinker TTL',
+                    'baud_source': 115200, 'baud_hardware_verified': False,
+                    'power': 'separate_appropriate_supply_not_ESP_3v3_or_5v'},
+            'chassis': {'M1_gpio': [38, 37], 'M2_gpio': [36, 35]},
+            'limits': {'gpio': [16, 17, 18, 39], 'enabled_in_source': False,
+                       'automatic_homing': False, 'manual_endpoint_reference_required': True},
+            'unresolved': [
+                'GPIO35–37 may conflict with N16R8 internal memory; board and wiring compatibility are not verified.',
+                'Read live firmwareBuild before control. Source version is not the flashed version.',
+                'Driver identity, supply, phase current, servo baud and calibrated travel require physical confirmation.',
+            ],
+        }
+
+    def _ros_demo(self, project):
+        source = (TEMPLATE_ROOT / 'foldbot_ros_demo.py').read_text(encoding='utf-8')
+        if project.get('workflow') is None:
+            return source
+        # Data is packaged as JSON, never interpolated as commands or source code.
+        return source.replace('import json\n', 'import json\nfrom pathlib import Path\n').replace(
+            '"mode": "offline_demo",',
+            '"mode": "offline_demo",\n'
+            '        "workflow": json.loads(Path(__file__).with_name("workflow.json").read_text(encoding="utf-8")),\n'
+            '        "serial_configuration_only": True,')
+
+    def _deployment(self, project):
+        flow = project['workflow']
+        return f'''# FoldBot deployment choices (revision {project['revision']})
+
+Current configuration: `config/workflow.json`. Wiring source: `config/wiring.json`.
+
+- Control path: `{flow['control']}`.
+- ROS target host: `{flow['ros_host']}`; requested ROS 2 distribution: `{flow['ros_version']}`.
+- ROS serial transport label: `{flow['ros_serial'] or 'unselected'}`. This is data only; this demo does not open it.
+- Browser action preview: `{flow['action_group']}`; visual only, no motor commands.
+
+## ESP32
+
+The complete firmware source is in `firmware/foldbot`. Follow its README to configure the local AP password and confirm the exact board and toolchain before compiling.
+A USB serial device is an upload transport. Source generation does not create a verified binary; never substitute an old .bin. No flash, NVS erase or motion happens from this export.
+
+## ROS 2
+
+ROS is installed and runs on the selected host; it is not firmware flashed through a COM port.
+The serial label describes a future ROS-to-device transport only. The current robot uses Wi-Fi WebSocket control, and a serial ROS transport has not been implemented.
+`ros2/foldbot_demo/foldbot_demo/demo.py` loads the accompanying `workflow.json` and prints these selections as an offline example.
+Even `--run-ros` is log-only. ROS installation, distribution/host compatibility, Gazebo and real robot control are unverified.
+
+## Evidence
+
+Source and configuration generated only. Compiled: false. Flashed: false. ROS executed: false. Gazebo executed: false. Hardware verified: false.
+Reviewing wiring information acknowledges the source description; it does not resolve GPIO35–37 / N16R8 compatibility or certify physical wiring.
+'''
 
     def _readme(self, project):
         return f'''# FoldBot generated source snapshot
@@ -308,6 +420,10 @@ AP 口令常量改为本地配置宏，同时隐藏串口口令输出。原始�
             project = self.get(project_id)
             if project['revision'] != body.revision:
                 raise HTTPException(409, '请求对应旧修订，请重新核对并生成。')
+            if project.get('workflow') is not None:
+                flow = FoldBotFlowConfig.model_validate(project['workflow'])
+                if not flow.wiring_reviewed:
+                    raise HTTPException(409, '请先核对折叠机器人模型与源码接线说明，再生成当前流程工程。')
             if project.get('generation'):
                 return self.require_current_generation(project_id, body.revision)
             provenance, templates = self._templates()

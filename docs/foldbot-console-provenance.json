@@ -22,6 +22,12 @@
       "mode": "preview",
       "bytes": 823630,
       "sha256": "5ad5ac51dc6018fe187f3c5208b7ea7229e7e52d50e490125c22ef766b4da867"
+    },
+    {
+      "path": "foldbot-model-preview.html",
+      "mode": "model-only",
+      "bytes": 695589,
+      "sha256": "9fdaeb9b46fed2a98f43601f779884fd7e4de77298e39fda2e45ad9076c8378d"
     }
   ],
   "robot_accessed": false,

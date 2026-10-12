@@ -369,6 +369,86 @@ def read_source() -> bytes:
     return data
 
 
+MODEL_VIEWER = r'''
+<script>
+(function(){
+  "use strict";
+  const channel = "ae-foldbot-model-preview";
+  const canvas = document.getElementById("model");
+  const label = document.getElementById("label");
+  const notify = type => { if(parent !== window && location.origin !== "null") parent.postMessage({channel,type}, location.origin); };
+  function validPose(p) {
+    const finite=(v,a,b)=>typeof v === "number" && Number.isFinite(v) && v>=a && v<=b;
+    return p && typeof p === "object" && !Array.isArray(p) &&
+      Object.keys(p).sort().join(",") === "fold1,fold2,joints,tracks" &&
+      finite(p.fold1,0,1) && finite(p.fold2,0,1) &&
+      Array.isArray(p.joints) && p.joints.length===6 && p.joints.every((v,i)=>finite(v,i===5?0:-1,1)) &&
+      Array.isArray(p.tracks) && p.tracks.length===2 && p.tracks.every(v=>finite(v,-1000,1000));
+  }
+  let renderer, scene, camera, model, resizeObserver;
+  let yaw=.72,pitch=.30,distance=10.8,targetY=1.5,drag=null;
+  function render(){ if(!renderer)return; camera.position.set(Math.sin(yaw)*Math.cos(pitch)*distance, targetY+Math.sin(pitch)*distance, Math.cos(yaw)*Math.cos(pitch)*distance);camera.lookAt(0,targetY,0);renderer.render(scene,camera); }
+  function resize(){ if(!renderer)return;const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();render(); }
+  try {
+    renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    scene=new THREE.Scene();scene.background=new THREE.Color(0xf3f6fb);
+    camera=new THREE.PerspectiveCamera(42,1,.1,100);
+    scene.add(new THREE.HemisphereLight(0xffffff,0x8191a2,2.4));
+    const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(5,10,6);light.castShadow=true;light.shadow.mapSize.set(1024,1024);light.shadow.camera.left=-6;light.shadow.camera.right=6;light.shadow.camera.top=9;light.shadow.camera.bottom=-6;scene.add(light);
+    const floor=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:0xecf0f5,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.03;floor.receiveShadow=true;scene.add(floor);
+    const grid=new THREE.GridHelper(30,30,0xb3bfd2,0xdde3ed);grid.position.y=-.02;scene.add(grid);
+    model=FoldBotModel.create(THREE,{stage:"final"});scene.add(model.root);
+    model.setPose({fold1:0,fold2:0,joints:[0,0,0,0,0,.4]});
+    targetY=model.getBounds().getCenter(new THREE.Vector3()).y;
+    resizeObserver=new ResizeObserver(resize);resizeObserver.observe(canvas);resize();
+    canvas.addEventListener("pointerdown",e=>{if(e.button!==0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
+    canvas.addEventListener("pointermove",e=>{if(!drag||drag.id!==e.pointerId)return;yaw-=(e.clientX-drag.x)*.007;pitch=Math.max(-.15,Math.min(1.2,pitch+(e.clientY-drag.y)*.007));drag={id:e.pointerId,x:e.clientX,y:e.clientY};render();});
+    const release=()=>{drag=null;};canvas.addEventListener("pointerup",release);canvas.addEventListener("pointercancel",release);canvas.addEventListener("lostpointercapture",release);
+    canvas.addEventListener("wheel",e=>{e.preventDefault();distance=Math.max(6,Math.min(22,distance*Math.exp(e.deltaY*.001)));render();},{passive:false});
+    canvas.addEventListener("keydown",e=>{if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","+","-"].includes(e.key)){e.preventDefault();if(e.key==="ArrowLeft")yaw-=.12;if(e.key==="ArrowRight")yaw+=.12;if(e.key==="ArrowUp")pitch=Math.min(1.2,pitch+.08);if(e.key==="ArrowDown")pitch=Math.max(-.15,pitch-.08);if(e.key==="+")distance=Math.max(6,distance-1);if(e.key==="-")distance=Math.min(22,distance+1);render();}});
+    document.getElementById("reset").addEventListener("click",()=>{yaw=.72;pitch=.30;distance=10.8;render();});
+    window.addEventListener("message",event=>{
+      const data=event.data;
+      if(event.source!==parent||event.origin!==location.origin||parent===window||!data||data.channel!==channel||data.type!=="pose"||!validPose(data.pose)||!["zh-CN","en"].includes(data.locale))return;
+      model.setPose(data.pose);model.setTrackPhase(...data.pose.tracks);targetY=model.getBounds().getCenter(new THREE.Vector3()).y;render();
+      const english=data.locale==="en";
+      document.documentElement.lang=english?"en":"zh-CN";
+      label.textContent=english?"FoldBot · Visual preview":"FoldBot · 模型预览";
+      canvas.setAttribute("aria-label",english?"FoldBot 3D model. Drag or use arrow keys to orbit; plus/minus to zoom.":"FoldBot 三维模型。拖动或方向键旋转，加减键缩放。");
+      document.getElementById("reset").textContent=english?"Reset view":"复位视角";
+    });
+    window.addEventListener("pagehide",()=>{resizeObserver.disconnect();model.dispose();renderer.dispose();});
+    notify("ready");
+  } catch(error) {
+    label.textContent="3D unavailable / 三维视图不可用";notify("render-error");
+  }
+})();
+</script>'''
+
+
+def build_model_preview(source: str) -> str:
+    """Only geometry and a display-only viewer; never include the console transport."""
+    scripts = re.findall(r'<script[^>]*>(.*?)</script>', source, re.S)
+    three = [s for s in scripts if 'Copyright 2010-2023 Three.js Authors' in s]
+    model = re.findall(r'<!-- FOLDBOT_REALISTIC_MODEL_BEGIN -->(.*?)<!-- FOLDBOT_REALISTIC_MODEL_END -->', source, re.S)
+    if len(three) != 1 or len(model) != 1:
+        raise ValueError('Audited model or THREE source region drift')
+    csp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    return f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{csp}">
+<title>FoldBot model preview</title><style>
+*{{box-sizing:border-box}}html,body{{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,sans-serif;color:#243144;background:#f3f6fb}}
+canvas{{width:100%;height:100%;display:block;touch-action:none;outline-offset:-4px}}canvas:focus-visible{{outline:3px solid #002fa7}}
+.bar{{position:absolute;left:16px;right:16px;top:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:none}}#label{{font-size:12px;font-weight:600;background:#ffffffdb;padding:7px 10px;border-radius:7px}}button{{pointer-events:auto;font:inherit;font-size:12px;border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:7px 10px;color:#002fa7;cursor:pointer}}button:focus-visible{{outline:3px solid #002fa7}}
+</style></head><body><canvas id="model" tabindex="0" aria-label="FoldBot 三维模型。拖动或方向键旋转，加减键缩放。"></canvas>
+<div class="bar"><span id="label">FoldBot · 模型预览</span><button id="reset" type="button">复位视角</button></div>
+<script>{three[0]}</script>{model[0]}{MODEL_VIEWER}</body></html>'''
+
+
 def main() -> None:
     original = read_source()
     target = ROOT / 'web' / 'public'
@@ -378,6 +458,9 @@ def main() -> None:
         name = f'foldbot-console-{mode}.html'
         (target / name).write_bytes(data)
         outputs.append({'path': name, 'mode': mode, 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+    model_data = build_model_preview(original.decode('utf-8')).encode('utf-8')
+    (target / 'foldbot-model-preview.html').write_bytes(model_data)
+    outputs.append({'path': 'foldbot-model-preview.html', 'mode': 'model-only', 'bytes': len(model_data), 'sha256': hashlib.sha256(model_data).hexdigest()})
     provenance = {
         'schema_version': 1, 'source': 'worker/foldbot_web_ui.h',
         'source_html_sha256': EXPECTED_HTML_SHA256,

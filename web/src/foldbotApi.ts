@@ -1,9 +1,12 @@
 /** FoldBot has its own project and control API. Public builds may read only the fixture. */
+import { normalizeFoldBotFlow, normalizeFoldBotDraftFlow, validateFoldBotFlow, type FoldBotFlowConfig } from "./foldbotFlow.ts";
+export type { FoldBotFlowConfig } from "./foldbotFlow.ts";
 export interface FoldBotDraft {
   name: string;
   request: string;
   drive_level: number;
   drive_duration_ms: number;
+  workflow?: FoldBotFlowConfig;
 }
 export interface FoldBotFile {
   path: string;
@@ -388,7 +391,10 @@ export function draftMatchesProject(
     draft.name.trim() === project.name.trim() &&
     draft.request.trim() === project.request.trim() &&
     draft.drive_level === project.drive_level &&
-    draft.drive_duration_ms === project.drive_duration_ms
+    draft.drive_duration_ms === project.drive_duration_ms &&
+    ((draft.workflow === undefined && project.workflow === undefined) ||
+      (validateFoldBotFlow(draft.workflow) && validateFoldBotFlow(project.workflow) &&
+        JSON.stringify(normalizeFoldBotFlow(draft.workflow)) === JSON.stringify(normalizeFoldBotFlow(project.workflow))))
   );
 }
 
@@ -398,6 +404,36 @@ export interface FoldBotDraftBaseline {
 }
 export interface FoldBotCachedDraft extends FoldBotDraftBaseline {
   draft: FoldBotDraft;
+}
+
+/**
+ * Merge only the baseline of this exact acknowledged save. A late response must
+ * preserve more recent (even temporarily invalid) typing and cannot bind another
+ * project's cache or roll back a baseline advanced by a later save.
+ * null means the caller must leave storage untouched.
+ */
+export function mergeFoldBotSavedCache(
+  cached: FoldBotCachedDraft | null,
+  previousProject: FoldBotProject | null,
+  saved: FoldBotProject,
+): FoldBotCachedDraft | null {
+  if (!cached || !saved.id || !Number.isSafeInteger(saved.revision)) return null;
+  if (previousProject) {
+    if (
+      cached.projectId !== previousProject.id ||
+      cached.baseRevision !== previousProject.revision ||
+      saved.id !== previousProject.id ||
+      (saved.revision !== previousProject.revision &&
+        saved.revision !== previousProject.revision + 1)
+    ) return null;
+  } else if (
+    cached.projectId !== null || cached.baseRevision !== null || saved.revision !== 1
+  ) return null;
+  return {
+    draft: cached.draft,
+    projectId: saved.id,
+    baseRevision: saved.revision,
+  };
 }
 
 /** A server lookup must never promote the revision on which a browser draft was based. */
@@ -415,6 +451,7 @@ export function restoreFoldBotDraft(
     request: source.request,
     drive_level: source.drive_level,
     drive_duration_ms: source.drive_duration_ms,
+    ...(source.workflow === undefined ? {} : { workflow: normalizeFoldBotDraftFlow(source.workflow) }),
   };
   const baseline: FoldBotDraftBaseline = cached
     ? {
@@ -446,6 +483,7 @@ export function validateFoldBotDraft(draft: FoldBotDraft) {
     draft.drive_level <= 20 &&
     Number.isInteger(draft.drive_duration_ms) &&
     draft.drive_duration_ms >= 1 &&
-    draft.drive_duration_ms <= 2000
+    draft.drive_duration_ms <= 2000 &&
+    (draft.workflow === undefined || validateFoldBotFlow(draft.workflow))
   );
 }

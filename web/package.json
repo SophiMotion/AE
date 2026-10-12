@@ -14,6 +14,7 @@
     "test:speech": "node --test tests/speech-input.test.mjs",
     "test:foldbot": "node --test tests/foldbot-client.test.mjs tests/foldbot-console-client.test.mjs",
     "test:hardware": "node --test tests/hardware-program.test.mjs",
+    "test:flash": "node --test tests/foldbot-flash.test.mjs",
     "test:state": "node --test tests/draft-state.test.mjs tests/workflow-model.test.mjs tests/code-diff.test.mjs tests/intake-guide.test.mjs tests/intake-details.test.mjs tests/intake-recommendations.test.mjs tests/intake-assistant.test.mjs tests/intake-choices.test.mjs tests/intake-issues.test.mjs tests/motion-plan.test.mjs tests/motion-results.test.mjs"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "@xyflow/react": "^12.12.0",
     "blockly": "13.3.0",
     "chart.js": "^4.5.1",
+    "esptool-js": "0.7.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "three": "^0.180.0",
