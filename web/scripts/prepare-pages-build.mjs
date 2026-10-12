@@ -18,7 +18,7 @@ cpSync(build, docs, { recursive: true });
 const currentAssets = new Set(readdirSync(resolve(build, "assets")));
 for (const name of readdirSync(resolve(docs, "assets"))) {
   // Remove only superseded Vite chunks; never remove hand-authored documents or models.
-  if (/^(index|StructureView|flow|chart)-[A-Za-z0-9_-]+\.(js|css)$/.test(name) && !currentAssets.has(name))
+  if (/^(index|StructureView|HardwareWorkspace|HardwareBlockEditor|flow|chart)-[A-Za-z0-9_-]+\.(js|css)$/.test(name) && !currentAssets.has(name))
     rmSync(resolve(docs, "assets", name));
 }
 writeFileSync(resolve(docs, ".nojekyll"), "");

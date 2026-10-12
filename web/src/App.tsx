@@ -1,7 +1,7 @@
 import { useI18n } from "./i18n";
 import { t } from "./localeStore";
 import { coreErrorText } from "./i18nCore";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowClockwise,
   Books,
@@ -53,14 +53,27 @@ import { isPublicDemo } from "./api";
 import { downloadDraft } from "./demoDownload";
 import FoldBotWorkbench from "./FoldBotWorkbench";
 import FoldBotConsole from "./FoldBotConsole";
-type Page = "workbench" | "foldbot" | "foldbot-console" | "library" | "settings";
+import type { HardwareProgram } from "./hardwareProgram";
+const HardwareWorkspace = lazy(() => import("./HardwareWorkspace"));
+type Page = "workbench" | "hardware" | "foldbot" | "foldbot-console" | "library" | "settings";
 export default function App() {
   const { locale, setLocale } = useI18n();
 
   const [page, setPage] = useState<Page>(() =>
     window.location.hash === "#foldbot-console" ? "foldbot-console" :
-      window.location.hash === "#foldbot" ? "foldbot" : "workbench",
+      window.location.hash === "#foldbot" ? "foldbot" :
+        window.location.hash === "#hardware" ? "hardware" : "workbench",
   );
+  useEffect(() => {
+    const navigateByHash = () => {
+      const hash = window.location.hash;
+      if (hash === "#hardware" || hash === "#foldbot" || hash === "#foldbot-console") {
+        setPage(hash.slice(1) as Page);
+      } else if (!hash || hash === "#workbench") setPage("workbench");
+    };
+    window.addEventListener("hashchange", navigateByHash);
+    return () => window.removeEventListener("hashchange", navigateByHash);
+  }, []);
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [draft, setDraft] = useState<Draft>(newDraft);
@@ -447,6 +460,33 @@ export default function App() {
     setError("");
     setSidebar(false);
   };
+  const useHardwareRequirements = (program: HardwareProgram) => {
+    if (program.request.length > 4000) {
+      setError(t("PRD 需求最多 4000 字，请先缩短硬件需求；完整积木配置仍保存在硬件工作区。", "PRD requests support up to 4,000 characters. Shorten the request first; the full block configuration stays in Hardware Studio."));
+      return;
+    }
+    if (dirty && (draft.request || draft.name) && !window.confirm(t("当前工作台有未保存的需求，是否用硬件需求新建草稿？已有保存工程不会被修改。", "There is an unsaved workbench draft. Create a new draft from Hardware Studio? Saved projects will stay unchanged."))) return;
+    const next = newDraft();
+    next.name = program.name;
+    next.request = program.request || t("根据硬件工作区的积木方案，整理嵌入式工程需求。", "Define an embedded project from the Hardware Studio block design.");
+    next.task_type = null;
+    next.hardware.board = program.board;
+    next.prd.use_case = program.name;
+    next.prd.constraints = [
+      t("来源：硬件开发工作区；完整配置可在那里导出 config.json。这里只带入配置摘要，需要按任务核对 ROS 与固件方案。", "Source: Hardware Studio. Export the complete config.json there. This summary still requires ROS and firmware task review."),
+      `Board: ${program.board}; Serial: 115200; Setup: ${program.setup.length}; Loop: ${program.loop.length}`,
+      ...program.bindings.map(binding => `${binding.id} (${binding.label}): GPIO ${binding.pin ?? "?"}`),
+      t("目前仅生成源码，未编译、烧录或实物测试。", "Source only; not built, flashed or tested on hardware."),
+    ].join("\n");
+    next.workflow = structuredClone(catalog?.default_workflow ?? next.workflow);
+    selectionVersion.current += 1;
+    setProject(null); setRun(null); setRuns([]); setProjectTools(null);
+    setDraft(next); setStage(0); setPage("workbench"); setError(""); setSidebar(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("project"); url.hash = "";
+    window.history.replaceState(null, "", url);
+    setToast(t("已带入新 PRD 草稿，请继续确认动作类型和工程要求。", "New PRD draft ready. Review its task type and engineering requirements."));
+  };
   const selectedStatus = project?.status || "draft";
   return (
     <div className="app-shell">
@@ -481,6 +521,7 @@ export default function App() {
           {(
             [
               { id: "workbench", label: "工作台" },
+              { id: "hardware", label: "硬件开发" },
               { id: "foldbot", label: "折叠机器人" },
               { id: "library", label: "资料库" },
               { id: "settings", label: "设置" },
@@ -491,7 +532,7 @@ export default function App() {
               onClick={() => {
                 setPage(item.id);
                 const url = new URL(window.location.href);
-                url.hash = item.id === "foldbot" ? "foldbot" : "";
+                url.hash = item.id === "foldbot" || item.id === "hardware" ? item.id : "";
                 window.history.replaceState(null, "", url);
                 setSidebar(false);
               }}
@@ -502,12 +543,14 @@ export default function App() {
                 <House size={18} aria-hidden="true" />
               ) : item.id === "foldbot" ? (
                 <Robot size={18} aria-hidden="true" />
+              ) : item.id === "hardware" ? (
+                <Cpu size={18} aria-hidden="true" />
               ) : item.id === "library" ? (
                 <Books size={18} aria-hidden="true" />
               ) : (
                 <GearSix size={18} aria-hidden="true" />
               )}
-              <span>{item.id === "foldbot" ? t("折叠机器人", "FoldBot") : t(item.label)}</span>
+              <span>{item.id === "foldbot" ? t("折叠机器人", "FoldBot") : item.id === "hardware" ? t("硬件开发", "Hardware") : t(item.label)}</span>
             </button>
           ))}
         </nav>
@@ -664,7 +707,15 @@ export default function App() {
             </button>
           </div>
         )}
-        {page === "foldbot-console" ? (
+        {page === "hardware" ? (
+          <Suspense fallback={<div className="initial-loader"><CircleNotch size={30} className="spin" /></div>}>
+            <HardwareWorkspace onUseRequirements={useHardwareRequirements} onFoldBot={(console) => {
+              const destination = console ? "foldbot-console" : "foldbot";
+              setPage(destination);
+              window.history.replaceState(null, "", `#${destination}`);
+            }} />
+          </Suspense>
+        ) : page === "foldbot-console" ? (
           <FoldBotConsole onBack={() => {
             setPage("foldbot");
             window.history.replaceState(null, "", "#foldbot");

@@ -24,6 +24,7 @@ from .foldbot_projects import FoldBotProjects, create_router as create_foldbot_p
 from .foldbot_control import FoldBotController, create_foldbot_router
 from .foldbot_arbiter import FoldBotArbiter
 from .foldbot_console import FoldBotConsoleBridge, create_foldbot_console_router
+from .hardware_workspace import create_router as create_hardware_workspace_router
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -133,6 +134,7 @@ def create_app(root: Path = ROOT):
     app.include_router(create_foldbot_projects_router(store, root, projects=foldbot_projects))
     app.include_router(create_foldbot_router(foldbot_control))
     app.include_router(create_foldbot_console_router(foldbot_console))
+    app.include_router(create_hardware_workspace_router(root, settings.private))
 
     @app.get('/api/foldbot/console/events')
     def foldbot_console_events():
