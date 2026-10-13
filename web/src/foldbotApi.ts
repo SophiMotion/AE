@@ -1,12 +1,15 @@
 /** FoldBot has its own project and control API. Public builds may read only the fixture. */
 import { normalizeFoldBotFlow, normalizeFoldBotDraftFlow, validateFoldBotFlow, type FoldBotFlowConfig } from "./foldbotFlow.ts";
+import { normalizeGuidedConfig, validateGuidedConfig, type GuidedConfig, type GuidedWiringPreview } from "./guidedFlow.ts";
 export type { FoldBotFlowConfig } from "./foldbotFlow.ts";
+export type { GuidedConfig, GuidedWiringPreview } from "./guidedFlow.ts";
 export interface FoldBotDraft {
   name: string;
   request: string;
   drive_level: number;
   drive_duration_ms: number;
   workflow?: FoldBotFlowConfig;
+  guided?: GuidedConfig;
 }
 export interface FoldBotFile {
   path: string;
@@ -172,6 +175,7 @@ export function createFoldBotApi(
   }
   return {
     template: () => request<FoldBotTemplate>("/template"),
+    wiringPreview: (draft: FoldBotDraft) => request<GuidedWiringPreview>("/wiring/preview", draft),
     projects: () => request<FoldBotProject[]>("/projects"),
     project: (id: string) =>
       request<FoldBotProject>(`/projects/${encodeURIComponent(id)}`),
@@ -392,6 +396,9 @@ export function draftMatchesProject(
     draft.request.trim() === project.request.trim() &&
     draft.drive_level === project.drive_level &&
     draft.drive_duration_ms === project.drive_duration_ms &&
+    ((draft.guided === undefined && project.guided === undefined) ||
+      (validateGuidedConfig(draft.guided) && validateGuidedConfig(project.guided) &&
+        JSON.stringify(normalizeGuidedConfig(draft.guided)) === JSON.stringify(normalizeGuidedConfig(project.guided)))) &&
     ((draft.workflow === undefined && project.workflow === undefined) ||
       (validateFoldBotFlow(draft.workflow) && validateFoldBotFlow(project.workflow) &&
         JSON.stringify(normalizeFoldBotFlow(draft.workflow)) === JSON.stringify(normalizeFoldBotFlow(project.workflow))))
@@ -452,6 +459,7 @@ export function restoreFoldBotDraft(
     drive_level: source.drive_level,
     drive_duration_ms: source.drive_duration_ms,
     ...(source.workflow === undefined ? {} : { workflow: normalizeFoldBotDraftFlow(source.workflow) }),
+    ...(source.guided === undefined ? {} : { guided: normalizeGuidedConfig(source.guided) }),
   };
   const baseline: FoldBotDraftBaseline = cached
     ? {
@@ -484,6 +492,7 @@ export function validateFoldBotDraft(draft: FoldBotDraft) {
     Number.isInteger(draft.drive_duration_ms) &&
     draft.drive_duration_ms >= 1 &&
     draft.drive_duration_ms <= 2000 &&
+    (draft.guided === undefined || validateGuidedConfig(draft.guided)) &&
     (draft.workflow === undefined || validateFoldBotFlow(draft.workflow))
   );
 }

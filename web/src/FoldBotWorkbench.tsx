@@ -8,7 +8,6 @@ import {
 } from "react";
 import {
   ArrowRight,
-  Check,
   DownloadSimple,
   Info,
   Robot,
@@ -18,14 +17,14 @@ import { isPublicDemo } from "./api";
 import { useI18n } from "./i18n";
 import RequestInput from "./RequestInput";
 import FoldBotConsole from "./FoldBotConsole";
-import FoldBotSimulation, { FoldBotModelPreview } from "./FoldBotSimulation";
+import FoldBotSimulation from "./FoldBotSimulation";
 import {
   defaultFoldBotFlow,
   normalizeFoldBotDraftFlow,
-  FOLDBOT_SOURCE_WIRING,
   type FoldBotFlowConfig,
 } from "./foldbotFlow";
 const FoldBotFlash = lazy(() => import("./FoldBotFlash"));
+const CodeCraftSourceViewer = lazy(() => import("./CodeCraftSourceViewer"));
 import "./foldbotFlow.css";
 import {
   draftMatchesProject,
@@ -43,33 +42,43 @@ import {
   type FoldBotTemplate,
 } from "./foldbotApi";
 import "./foldbot.css";
+import ProjectLauncher, {
+  readProjectCache,
+  type ProjectEntry,
+} from "./ProjectLauncher";
+import { RequirementSteps, HardwareSelector } from "./GuidedSetup";
+import GuidedWiring from "./GuidedWiring";
+import {
+  defaultGuidedConfig,
+  normalizeGuidedConfig,
+  guidedRequirementsReady,
+  guidedHardwareReady,
+  guidedWiringCurrent,
+  buildGuidedWiringPreview,
+  type GuidedWiringPreview,
+  type GuidedConfig,
+} from "./guidedFlow";
+import "./guidedJourney.css";
 
 const defaults: FoldBotDraft = {
-  name: "FoldBot 整机工程",
-  request:
-    "让折叠机器人展开两块折叠板，用机械臂完成动作，并能在网页中控制履带底盘。",
+  name: "新机器人方案",
+  request: "",
   drive_level: 10,
   drive_duration_ms: 200,
   workflow: defaultFoldBotFlow(),
+  guided: defaultGuidedConfig(),
 };
-const storageKey = `ae.foldbot.draft.v1.${isPublicDemo ? "public" : "local"}`;
-function readCache(): FoldBotCachedDraft | null {
-  try {
-    const cached = JSON.parse(localStorage.getItem(storageKey) ?? "null");
-    if (
-      cached &&
-      typeof cached.draft?.name === "string" &&
-      typeof cached.draft?.request === "string" &&
-      typeof cached.draft?.drive_level === "number" &&
-      typeof cached.draft?.drive_duration_ms === "number"
-    ) {
-      normalizeFoldBotDraftFlow(cached.draft.workflow);
-      return cached;
-    }
-  } catch {
-    /* A storage failure must not prevent editing or downloading. */
-  }
-  return null;
+function upgradeDraft(draft: FoldBotDraft): FoldBotDraft {
+  return {
+    ...draft,
+    guided: normalizeGuidedConfig(draft.guided),
+    workflow: {
+      ...normalizeFoldBotDraftFlow(draft.workflow),
+      wiring_reviewed: draft.guided
+        ? (draft.workflow?.wiring_reviewed ?? false)
+        : false,
+    },
+  };
 }
 function downloadText(
   name: string,
@@ -85,9 +94,34 @@ function downloadText(
 }
 
 export default function FoldBotWorkbench() {
+  const [entry, setEntry] = useState<ProjectEntry | null>(null);
+  return entry ? (
+    <GuidedProjectFlow
+      key={entry.cacheKey}
+      entry={entry}
+      onHome={() => setEntry(null)}
+    />
+  ) : (
+    <ProjectLauncher onOpen={setEntry} />
+  );
+}
+function GuidedProjectFlow({
+  entry,
+  onHome,
+}: {
+  entry: ProjectEntry;
+  onHome: () => void;
+}) {
+  const [storageKey, setStorageKey] = useState(entry.cacheKey);
   const { t, locale } = useI18n();
-  const [cache] = useState(readCache);
-  const [draft, setDraft] = useState<FoldBotDraft>(cache?.draft ?? defaults);
+  const [cache] = useState(() =>
+    entry.mode === "resume"
+      ? readProjectCache(entry.sourceCacheKey ?? storageKey)
+      : null,
+  );
+  const [draft, setDraft] = useState<FoldBotDraft>(() =>
+    upgradeDraft(cache?.draft ?? { ...defaults, request: entry.request ?? "" }),
+  );
   const [draftBaseline, setDraftBaseline] = useState<FoldBotDraftBaseline>({
     projectId: cache?.projectId ?? null,
     baseRevision: cache?.baseRevision ?? null,
@@ -98,6 +132,15 @@ export default function FoldBotWorkbench() {
   const [template, setTemplate] = useState<FoldBotTemplate | null>(null);
   const [reference, setReference] = useState<FoldBotReference | null>(null);
   const [stage, setStage] = useState(0);
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [stage]);
+  const [wiringPreview, setWiringPreview] =
+    useState<GuidedWiringPreview | null>(null);
+  const [wiringBusy, setWiringBusy] = useState(false);
+  const [previewSeen, setPreviewSeen] = useState(false);
+  const [deploymentAcknowledged, setDeploymentAcknowledged] = useState(false);
+  const [referenceShown, setReferenceShown] = useState(false);
   const [flashBusy, setFlashBusy] = useState(false);
   useEffect(() => {
     const receive = (event: Event) =>
@@ -139,11 +182,38 @@ export default function FoldBotWorkbench() {
             foldbotApi.projects(),
           ]);
           if (!active) return;
-          const restored = restoreFoldBotDraft(
-            cache,
-            projects,
-            catalog.defaults,
-          );
+          const selected =
+            entry.mode === "resume"
+              ? projects.filter(
+                  (p) => p.id === (entry.projectId ?? cache?.projectId),
+                )
+              : [];
+          if (
+            entry.mode === "resume" &&
+            entry.projectId &&
+            !selected.length &&
+            !cache
+          )
+            throw new Error("project_not_found");
+          const restored = restoreFoldBotDraft(cache, selected, {
+            ...defaults,
+            request: entry.request ?? "",
+          });
+          if (
+            entry.copyLegacy ||
+            !restored.draft.guided ||
+            (selected[0] && !selected[0].guided)
+          ) {
+            // A legacy snapshot stays untouched; continuing creates an explicit guided copy.
+            // The launcher history may still be loading when a cached draft is opened.
+            // Allocate a new storage key here too, preserving that source cache.
+            if (!entry.copyLegacy)
+              setStorageKey(`ae.guided.draft.v1.local.${crypto.randomUUID()}`);
+            restored.project = null;
+            restored.baseline = { projectId: null, baseRevision: null };
+            restored.conflict = false;
+          }
+          restored.draft = upgradeDraft(restored.draft);
           projectRef.current = restored.project;
           setProject(restored.project);
           setTemplate(catalog);
@@ -165,7 +235,7 @@ export default function FoldBotWorkbench() {
       active = false;
       alive.current = false;
     };
-  }, [cache]);
+  }, [cache, entry]);
 
   useEffect(() => {
     if (loading) return;
@@ -181,11 +251,35 @@ export default function FoldBotWorkbench() {
     } catch {
       setStorageFailed(true);
     }
-  }, [draft, draftBaseline, loading]);
+  }, [draft, draftBaseline, loading, storageKey]);
 
   function updateDraft(patch: Partial<FoldBotDraft>) {
     if (generationLock.current) return;
-    const next = { ...draftRef.current, ...patch };
+    const previous = draftRef.current;
+    const next = { ...previous, ...patch };
+    const comparable = (g?: GuidedConfig) =>
+      JSON.stringify({
+        ...normalizeGuidedConfig(g),
+        wiring_binding_sha256: null,
+      });
+    const wiringChanged =
+      (patch.request !== undefined && patch.request !== previous.request) ||
+      (patch.guided !== undefined &&
+        comparable(patch.guided) !== comparable(previous.guided));
+    if (wiringChanged) {
+      next.guided = {
+        ...normalizeGuidedConfig(next.guided),
+        wiring_binding_sha256: null,
+      };
+      next.workflow = {
+        ...(next.workflow ?? defaultFoldBotFlow()),
+        wiring_reviewed: false,
+      };
+      setWiringPreview(null);
+      setPreviewSeen(false);
+    }
+    setDeploymentAcknowledged(false);
+    setReferenceShown(false);
     editVersion.current++;
     draftRef.current = next;
     setDraft(next);
@@ -241,7 +335,7 @@ export default function FoldBotWorkbench() {
       });
     saveQueue.current = operation;
     return operation;
-  }, []);
+  }, [storageKey]);
   useEffect(() => {
     if (
       isPublicDemo ||
@@ -253,7 +347,7 @@ export default function FoldBotWorkbench() {
     )
       return;
     // Untouched defaults remain a draft until the user edits or explicitly generates.
-    if (!project && !cache && editVersion.current === 0) return;
+    if (editVersion.current === 0) return;
     const timer = setTimeout(() => {
       void saveDraft().catch(() => undefined);
     }, 650);
@@ -266,6 +360,7 @@ export default function FoldBotWorkbench() {
       generationLock.current ||
       !reviewed ||
       !draftRef.current.workflow?.wiring_reviewed ||
+      !guidedWiringCurrent(draftRef.current, wiringPreview) ||
       !validateFoldBotDraft(draftRef.current) ||
       conflictRef.current
     )
@@ -280,7 +375,7 @@ export default function FoldBotWorkbench() {
       projectRef.current = generated;
       if (alive.current) {
         setProject(generated);
-        setStage(3);
+        setStage(4);
       }
     } catch (cause) {
       if (alive.current)
@@ -293,7 +388,13 @@ export default function FoldBotWorkbench() {
 
   const shownProject = isPublicDemo ? (reference?.project ?? null) : project;
   const generation = shownProject?.generation;
-  const files = generation?.files ?? [];
+  const files = (generation?.files ?? []).filter(
+    (file) =>
+      !isPublicDemo ||
+      (draft.workflow?.control === "ros"
+        ? !file.path.startsWith("firmware/")
+        : !file.path.startsWith("ros2/")),
+  );
   const current =
     !!project?.generation &&
     project.reviewed &&
@@ -363,9 +464,7 @@ export default function FoldBotWorkbench() {
           ? t("草稿待保存", "Draft changes")
           : `${t("已保存修订", "Saved revision")} ${project?.revision ?? "—"}`;
   const exportUrl = isPublicDemo
-    ? generation
-      ? reference?.archive_url
-      : null
+    ? null
     : shownProject && current && !generating && !saving
       ? foldbotApi.exportUrl(shownProject.id)
       : null;
@@ -379,30 +478,113 @@ export default function FoldBotWorkbench() {
   const flow = draft.workflow ?? defaultFoldBotFlow();
   const changeFlow = (patch: Partial<FoldBotFlowConfig>) =>
     updateDraft({ workflow: { ...flow, ...patch } });
+  const guided = normalizeGuidedConfig(draft.guided);
+  const requirementsReady = valid && guidedRequirementsReady(draft);
+  const hardwareReady = requirementsReady && guidedHardwareReady(guided);
+  const wiringReady =
+    hardwareReady &&
+    flow.wiring_reviewed &&
+    guidedWiringCurrent(draft, wiringPreview);
+  const codeReady =
+    wiringReady && (isPublicDemo ? referenceShown && !!generation : current);
   const stepLabels = [
-    t("需求与接线", "Request & wiring"),
-    t("控制方案", "Control route"),
-    t("仿真预览", "Simulation preview"),
-    t("工程代码", "Source project"),
-    t("部署与烧录", "Deploy & flash"),
-    t("机器人控制", "Robot control"),
+    t("说明需求", "Describe"),
+    t("选择硬件", "Hardware"),
+    t("生成接线", "Wiring"),
+    t("仿真预览", "Preview"),
+    t("生成程序", "Program"),
+    t("部署程序", "Deploy"),
+    t("机器人控制", "Control"),
   ];
-  const blocked = loading || generating || flashBusy;
+  const canVisit = [
+    true,
+    requirementsReady,
+    hardwareReady,
+    wiringReady,
+    wiringReady && (previewSeen || current),
+    codeReady,
+    codeReady && deploymentAcknowledged,
+  ];
+  const blocked = loading || generating || flashBusy || wiringBusy;
   const next = () => {
-    if (!blocked) setStage(Math.min(5, stage + 1));
+    if (!blocked && canVisit[stage + 1]) setStage(Math.min(6, stage + 1));
   };
+  useEffect(() => {
+    if (stage === 3) setPreviewSeen(true);
+  }, [stage]);
+  // Recover only a previously bound plan, never generate/confirm it on first entry.
+  useEffect(() => {
+    if (!template || !draft.guided?.wiring_binding_sha256) return;
+    let active = true;
+    void buildGuidedWiringPreview(draft, template)
+      .then((plan) => {
+        if (active && guidedWiringCurrent(draft, plan)) setWiringPreview(plan);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [template, draft.guided?.wiring_binding_sha256, draft.request]);
+  async function generateWiring() {
+    if (!hardwareReady || blocked || !template) return;
+    const snapshot = draftRef.current;
+    const version = editVersion.current;
+    setWiringBusy(true);
+    setError("");
+    try {
+      const plan = isPublicDemo
+        ? await buildGuidedWiringPreview(snapshot, template)
+        : await foldbotApi.wiringPreview(snapshot);
+      if (!alive.current || editVersion.current !== version) return;
+      updateDraft({
+        guided: {
+          ...normalizeGuidedConfig(snapshot.guided),
+          wiring_binding_sha256: plan.binding_sha256,
+        },
+        workflow: {
+          ...(snapshot.workflow ?? defaultFoldBotFlow()),
+          wiring_reviewed: false,
+        },
+      });
+      setWiringPreview(plan);
+    } catch (cause) {
+      if (alive.current)
+        setError(cause instanceof Error ? cause.message : "wiring_failed");
+    } finally {
+      if (alive.current) setWiringBusy(false);
+    }
+  }
+  function changeGuided(value: GuidedConfig) {
+    const task = value.primary_task;
+    updateDraft({
+      guided: value,
+      workflow: {
+        ...flow,
+        wiring_reviewed: false,
+        action_group:
+          task === "unselected" || task === "custom" ? flow.action_group : task,
+      },
+    });
+  }
   return (
-    <section className="foldbot-workbench foldflow">
+    <section className="foldbot-workbench foldflow guided-journey">
       <header className="foldflow-heading">
         <div>
           <div className="foldbot-eyebrow">
-            <span className="foldbot-square" /> FOLDBOT / AUTO ENGINEERING
+            <span className="foldbot-square" /> AUTO ENGINEERING / PROJECT
           </div>
-          <h1>{t("把想法变成机器人动作", "From an idea to a robot action")}</h1>
+          <button
+            className="ae-back-entry"
+            disabled={blocked || saving}
+            onClick={onHome}
+          >
+            {t("← 返回工程入口", "← Back to projects")}
+          </button>
+          <h1>{stepLabels[stage]}</h1>
           <p>
             {t(
-              "一台折叠机器人，一份需求，从接线到控制。",
-              "One FoldBot. One request. From wiring to control.",
+              "先说明需求，再一步步完成你的方案。",
+              "Shape the requirement, then build your solution step by step.",
             )}
           </p>
         </div>
@@ -416,13 +598,13 @@ export default function FoldBotWorkbench() {
       </header>
       <nav
         className="foldflow-steps"
-        aria-label={t("折叠机器人流程", "FoldBot workflow")}
+        aria-label={t("机器人开发流程", "Robot development workflow")}
       >
         {stepLabels.map((label, i) => (
           <button
             type="button"
             key={i}
-            disabled={blocked}
+            disabled={blocked || !canVisit[i]}
             onClick={() => setStage(i)}
             className={stage === i ? "active" : ""}
             aria-current={stage === i ? "step" : undefined}
@@ -433,9 +615,11 @@ export default function FoldBotWorkbench() {
         ))}
       </nav>
       <div className="foldflow-context">
-        <span>FoldBot · Sophicar ESP32-S3</span>
+        <span>{draft.name}</span>
         <span>
-          {flow.control === "esp" ? "ESP32 + Web" : `ROS 2 ${flow.ros_version}`}
+          {guided.robot_choice === "foldbot"
+            ? t("折叠机器人方案", "Folding robot")
+            : t("需求草稿", "Requirement draft")}
         </span>
         <span>
           {t("配置随需求自动保存", "Configuration autosaves with the request")}
@@ -503,7 +687,7 @@ export default function FoldBotWorkbench() {
         <>
           <section className="foldbot-card foldflow-request">
             <div className="foldflow-section-heading">
-              <h2>{t("想让它做什么？", "What should FoldBot do?")}</h2>
+              <h2>{t("先说说你的想法", "Tell us your idea")}</h2>
               <label className="foldflow-project-name">
                 {t("工程", "Project")}
                 <input
@@ -521,146 +705,86 @@ export default function FoldBotWorkbench() {
               disabled={blocked}
               rows={3}
               placeholder={t(
-                "说一句话，或选一个起点…",
-                "Describe an action, or choose a starting point…",
+                "你想制作什么，希望它完成什么？",
+                "What would you like to build, and what should it do?",
               )}
               overflow={overflow}
               onOverflowChange={setOverflow}
             />
-            <div className="foldflow-suggestions">
-              {[
-                [
-                  t("展开与收拢", "Fold & unfold"),
-                  t(
-                    "展开两块折叠板，完成操作后收拢。",
-                    "Unfold both panels, then fold them after the task.",
-                  ),
-                  "fold-cycle",
-                ],
-                [
-                  t("机械臂动作", "Arm action"),
-                  t(
-                    "让机械臂按动作组运动，夹爪张开后合拢。",
-                    "Move the arm through an action group, then open and close the gripper.",
-                  ),
-                  "arm-demo",
-                ],
-                [
-                  t("底盘点动", "Chassis drive"),
-                  t(
-                    "在网页中低速点动履带底盘，松开立即停止。",
-                    "Jog the tracked chassis slowly from the web page and stop on release.",
-                  ),
-                  "chassis-demo",
-                ],
-              ].map(([label, request, group]) => (
-                <button
-                  type="button"
-                  disabled={blocked}
-                  key={group}
-                  onClick={() =>
-                    updateDraft({
-                      request,
-                      workflow: {
-                        ...flow,
-                        action_group:
-                          group as FoldBotFlowConfig["action_group"],
-                      },
-                    })
-                  }
-                >
-                  {label}
-                  <ArrowRight size={14} />
-                </button>
-              ))}
-            </div>
             <details className="foldflow-detail">
               <summary>
-                {t("查看生成依据与提示词", "Generation basis & prompt")}
+                {t("查看整理依据与提示词", "View guidance and prompt")}
               </summary>
               <p>
                 {t(
-                  "本流程复用已有 FoldBot 整机源码。上方文字保存为需求；动作组先用于视觉预览，不会自动改写标定或电机运动逻辑。",
-                  "This flow reuses the existing full FoldBot source. Your text becomes the requirement; action groups are visual previews and do not rewrite calibration or motor logic.",
+                  "按你的描述逐项确认机器人、功能与硬件。当前引导使用固定问答与现有模板；不会把未实现的能力写成已完成。",
+                  "Confirm robot, task and hardware from your description. This guide uses structured questions and existing templates; it does not claim unsupported capabilities.",
                 )}
               </p>
               <pre>
                 {t(
-                  "以现有 FoldBot 模板整理需求，保留底盘、双折叠板、六轴机械臂与原网页；不猜测引脚、行程或扭矩。未核对内容标记待确认。",
-                  "Use the existing FoldBot template. Keep the chassis, both folding panels, six-joint arm and original web console. Do not invent pins, travel or torque. Mark unresolved information.",
+                  "保留用户需求原文；询问机器人类型、主要任务、预期效果与硬件组合。未知型号保留待适配，不猜测引脚、标定或扭矩。",
+                  "Keep the original request. Ask about robot type, task, expected outcome and hardware. Mark unknown models for adaptation; do not invent pins, calibration or torque.",
                 )}
               </pre>
             </details>
           </section>
-          <div className="foldflow-robot-grid">
-            <section className="foldbot-card foldflow-model-card">
-              <div className="foldflow-section-heading">
-                <h2>{t("你的折叠机器人", "Your folding robot")}</h2>
-                <span>{t("原版模型", "Original model")}</span>
-              </div>
-              <FoldBotModelPreview />
-              <div className="foldflow-modules">
-                <span>{t("履带底盘", "Tracked chassis")}</span>
-                <span>{t("双折叠板", "Two panels")}</span>
-                <span>{t("六轴机械臂", "Six-joint arm")}</span>
-              </div>
-            </section>
-            <section className="foldbot-card foldflow-wiring">
-              <div className="foldflow-section-heading">
-                <h2>{t("硬件连接", "Hardware connections")}</h2>
-                <span>{t("源码接线图", "Source wiring")}</span>
-              </div>
-              <div className="foldflow-board">
-                Sophicar <strong>ESP32-S3</strong>
-                <small>USB · Wi-Fi · GPIO</small>
-              </div>
-              <div className="foldflow-wires">
-                {FOLDBOT_SOURCE_WIRING.map((item) => (
-                  <details
-                    key={item.id}
-                    className={item.id === "chassis" ? "pending" : ""}
-                  >
-                    <summary>
-                      <span className="foldflow-wire-dot" />
-                      <strong>
-                        {locale === "en" ? item.labelEn : item.label}
-                      </strong>
-                      <code>{item.pins}</code>
-                    </summary>
-                    <p>
-                      {locale === "en" ? item.connectionEn : item.connection}
-                    </p>
-                  </details>
-                ))}
-              </div>
-              <p className="foldflow-hardware-note">
-                <WarningCircle size={18} />
-                {t(
-                  "GPIO35–37 与 N16R8 存储器兼容性待现场确认。此图说明源码连接，不代表已验证接线。",
-                  "GPIO35–37 / N16R8 memory compatibility needs an on-site check. This diagram describes source connections, not verified wiring.",
-                )}
-              </p>
-              <label className="foldbot-check">
-                <input
-                  type="checkbox"
-                  checked={flow.wiring_reviewed}
-                  disabled={blocked}
-                  onChange={(e) =>
-                    changeFlow({ wiring_reviewed: e.target.checked })
-                  }
-                />
-                <span>
-                  {t(
-                    "已核对模型与接线来源，待确认项保留在工程中",
-                    "Reviewed model and wiring sources; retain unresolved items in the project",
-                  )}
-                </span>
-              </label>
-            </section>
-          </div>
+          <RequirementSteps
+            request={draft.request}
+            value={guided}
+            onChange={changeGuided}
+            disabled={blocked}
+          />
         </>
       )}
       {stage === 1 && (
+        <HardwareSelector
+          value={guided}
+          onChange={changeGuided}
+          disabled={blocked}
+        />
+      )}
+      {stage === 2 && (
+        <>
+          <section className="foldbot-card guided-wiring-placeholder">
+            <h2>{t("把选好的硬件连起来", "Connect your selected hardware")}</h2>
+            <p>
+              {t(
+                "根据已确认的需求与现有组合整理接线。先看清信号线和引脚，再继续模型预览。",
+                "Create a wiring proposal for your confirmed requirements and hardware. Review signals and pins before moving to the model preview.",
+              )}
+            </p>
+            <button
+              className="button primary"
+              disabled={blocked || !hardwareReady}
+              onClick={() => void generateWiring()}
+            >
+              {wiringBusy
+                ? t("正在整理接线…", "Preparing wiring…")
+                : wiringPreview
+                  ? t("重新生成接线方案", "Regenerate wiring")
+                  : t("生成硬件接线方案", "Create wiring proposal")}
+            </button>
+          </section>
+          {wiringPreview && guidedWiringCurrent(draft, wiringPreview) && (
+            <GuidedWiring
+              preview={wiringPreview}
+              reviewed={flow.wiring_reviewed}
+              disabled={blocked}
+              onReviewedChange={(wiring_reviewed) =>
+                changeFlow({ wiring_reviewed })
+              }
+            />
+          )}
+        </>
+      )}
+      {stage === 3 && (
+        <FoldBotSimulation
+          actionGroup={flow.action_group}
+          onActionGroupChange={(group) => changeFlow({ action_group: group })}
+        />
+      )}
+      {stage === 4 && (
         <section className="foldbot-card">
           <div className="foldflow-section-heading">
             <div>
@@ -792,13 +916,7 @@ export default function FoldBotWorkbench() {
           </details>
         </section>
       )}
-      {stage === 2 && (
-        <FoldBotSimulation
-          actionGroup={flow.action_group}
-          onActionGroupChange={(group) => changeFlow({ action_group: group })}
-        />
-      )}
-      {stage === 3 && (
+      {stage === 4 && (
         <section className="foldbot-card foldflow-code">
           <div className="foldflow-section-heading">
             <div>
@@ -824,8 +942,8 @@ export default function FoldBotWorkbench() {
               {flow.wiring_reviewed
                 ? t("接线来源已核对", "Wiring sources reviewed")
                 : t(
-                    "请先核对第 1 步的模型与接线",
-                    "Review the model and wiring in step 1",
+                    "请先核对第 3 步的模型与接线",
+                    "Review the model and wiring in step 3",
                   )}
             </span>
           </div>
@@ -838,6 +956,12 @@ export default function FoldBotWorkbench() {
                   "The files below are an existing reference, not newly generated from your draft. Download your configuration to continue locally.",
                 )}
               </p>
+              <button
+                className="button primary"
+                onClick={() => setReferenceShown(true)}
+              >
+                {t("查看所选方案参考程序", "View selected route reference")}
+              </button>
             </div>
           ) : (
             <div className="foldflow-generate">
@@ -845,7 +969,7 @@ export default function FoldBotWorkbench() {
                 <input
                   type="checkbox"
                   checked={reviewed}
-                  disabled={blocked || !valid || !flow.wiring_reviewed}
+                  disabled={blocked || !valid || !wiringReady}
                   onChange={(e) => setReviewed(e.target.checked)}
                 />
                 {t(
@@ -856,21 +980,17 @@ export default function FoldBotWorkbench() {
               <button
                 className="button primary"
                 disabled={
-                  blocked ||
-                  !valid ||
-                  !reviewed ||
-                  !flow.wiring_reviewed ||
-                  conflict
+                  blocked || !valid || !reviewed || !wiringReady || conflict
                 }
                 onClick={() => void generate()}
               >
                 {generating
                   ? t("正在生成…", "Generating…")
-                  : t("生成完整工程", "Generate complete project")}
+                  : t("生成所选程序", "Generate selected program")}
               </button>
             </div>
           )}
-          {generation && (
+          {generation && (!isPublicDemo || referenceShown) && (
             <>
               <div className="foldbot-evidence">
                 <span className="source">
@@ -932,19 +1052,26 @@ export default function FoldBotWorkbench() {
                     )}
                   </div>
                   <p>{files.find((f) => f.path === selectedPath)?.purpose}</p>
-                  <pre
-                    tabIndex={0}
-                    aria-label={t("文件内容预览", "File contents")}
-                  >
-                    {previewLoading
-                      ? t("正在读取…", "Loading…")
-                      : previewError ||
-                        preview?.content.slice(0, 24000) ||
-                        t(
-                          "此文件无文本预览，请下载完整工程。",
-                          "No text preview; download the complete project.",
-                        )}
-                  </pre>
+                  {previewLoading || previewError || !preview ? (
+                    <p role="status">
+                      {previewLoading
+                        ? t("正在读取…", "Loading…")
+                        : previewError ||
+                          t(
+                            "此文件无文本预览，请下载完整工程。",
+                            "No text preview; download the complete project.",
+                          )}
+                    </p>
+                  ) : (
+                    <Suspense
+                      fallback={<pre tabIndex={0}>{preview.content}</pre>}
+                    >
+                      <CodeCraftSourceViewer
+                        path={preview.path}
+                        content={preview.content}
+                      />
+                    </Suspense>
+                  )}
                   {preview && (
                     <small className="foldflow-hash">
                       SHA-256 {preview.sha256}
@@ -981,7 +1108,7 @@ export default function FoldBotWorkbench() {
               </details>
             </>
           )}
-          {!generation && (
+          {(!generation || (isPublicDemo && !referenceShown)) && (
             <p className="foldflow-empty">
               {t(
                 "完成上方核对后，文件名、类型、用途与目录会显示在这里。",
@@ -999,14 +1126,15 @@ export default function FoldBotWorkbench() {
           )}
         </section>
       )}
-      {stage === 4 && (
+
+      {stage === 5 && (
         <>
-          {flow.control === "ros" && (
+          {flow.control === "ros" ? (
             <section className="foldbot-card foldflow-ros">
-              <h2>{t("ROS 部署接口", "ROS deployment interface")}</h2>
+              <h2>{t("ROS 部署说明", "ROS deployment guide")}</h2>
               <div className="foldflow-fields">
                 <p>
-                  {t("主机", "Host")}
+                  {t("目标主机", "Target host")}
                   <strong>{flow.ros_host}</strong>
                 </p>
                 <p>
@@ -1014,64 +1142,136 @@ export default function FoldBotWorkbench() {
                   <strong>ROS 2 {flow.ros_version}</strong>
                 </p>
                 <p>
-                  {t("通信串口", "Communication port")}
+                  {t("通信串口（配置）", "Serial port (configuration)")}
                   <strong>
-                    {flow.ros_serial ||
-                      (isPublicDemo
-                        ? t(
-                            "示例 /dev/ttyUSB0（未连接）",
-                            "Example /dev/ttyUSB0 (disconnected)",
-                          )
-                        : t("未指定", "Not specified"))}
+                    {flow.ros_serial || t("未指定", "Not specified")}
                   </strong>
                 </p>
               </div>
               <p>
                 {t(
-                  "下载第 4 步工程，在目标主机按 deployment.md 配置。此处展示 ROS 源码与部署参数；尚未运行 ROS 或通过 ROS 控制实物。ESP32 设备端仍可在下方更新固件。",
-                  "Download the step-4 project and follow deployment.md on the target host. This shows ROS source and deployment settings; ROS execution and real control are unverified. ESP32 firmware can still be updated below.",
+                  "所选 ROS 工程提供源码与部署参数演示，按工程中的 deployment.md 在目标主机配置。ROS 不通过 COM 口烧录到 ESP32；折叠机器人 ROS 实机控制尚未完成。",
+                  "The selected ROS project demonstrates source and deployment settings. Follow deployment.md on the target host. ROS is not flashed onto ESP32 over COM; real FoldBot ROS control is not yet implemented.",
                 )}
               </p>
             </section>
+          ) : (
+            <Suspense
+              fallback={
+                <p>{t("正在加载 USB 烧录工具…", "Loading USB flasher…")}</p>
+              }
+            >
+              <FoldBotFlash
+                projectId={project?.id ?? null}
+                revision={project?.revision ?? null}
+                generationId={project?.generation?.id ?? null}
+                sourceHash={project?.generation?.sha256 ?? null}
+                current={current && wiringReady && !draftDirty && !saving}
+              />
+            </Suspense>
           )}
-          <Suspense
-            fallback={
-              <p>{t("正在加载 USB 烧录工具…", "Loading USB flasher…")}</p>
-            }
-          >
-            <FoldBotFlash
-              projectId={project?.id ?? null}
-              revision={project?.revision ?? null}
-              generationId={project?.generation?.id ?? null}
-              sourceHash={project?.generation?.sha256 ?? null}
-              current={current && !draftDirty && !saving}
-            />
-          </Suspense>
+          <section className="foldbot-card guided-complete-choice">
+            <h2>{t("下一步：机器人控制", "Next: robot control")}</h2>
+            <p>
+              {flow.control === "ros"
+                ? t(
+                    "下一步查看控制接入状态，当前 ROS 路线仅演示。",
+                    "Continue to the control integration status; the ROS route is demonstration only.",
+                  )
+                : isPublicDemo
+                  ? t(
+                      "分享版可以查看原版控制台，设备保持未连接。",
+                      "The shared version previews the original console with the device disconnected.",
+                    )
+                  : t(
+                      "烧录完成或沿用已核对的板上固件后，可进入控制台。连接与运动仍由你手动操作。",
+                      "After flashing, or when reusing verified firmware already on the board, continue to the console. Connection and motion remain manual.",
+                    )}
+            </p>
+            <label className="foldbot-check">
+              <input
+                type="checkbox"
+                checked={deploymentAcknowledged}
+                disabled={blocked}
+                onChange={(e) => setDeploymentAcknowledged(e.target.checked)}
+              />
+              {flow.control === "ros"
+                ? t(
+                    "已阅读 ROS 部署与接入状态",
+                    "I have reviewed the ROS deployment status",
+                  )
+                : isPublicDemo
+                  ? t("继续查看离线控制台", "Continue to the offline console")
+                  : t(
+                      "我会使用板上现有固件，并在连接前核对版本",
+                      "I will use the firmware on the board and check its version before connecting",
+                    )}
+            </label>
+          </section>
         </>
       )}
-      {stage === 5 && (
-        <>
-          <div className="foldflow-control-context">
-            <Robot size={22} />
-            <div>
-              <strong>{draft.name}</strong>
-              <p>
-                {t(
-                  "连接 ESP 热点后，在下方原版控制台核验并连接。这里使用板上现有固件，生成源码或预览动作不会自动发送到机器人。",
-                  "After joining the ESP hotspot, check and connect in the original console below. It uses the firmware on the board; generated source and visual actions are not automatically sent.",
-                )}
-              </p>
+      {stage === 6 &&
+        (flow.control === "ros" ? (
+          <section className="foldbot-card">
+            <h2>{t("ROS 控制待接入", "ROS control pending")}</h2>
+            <p>
+              {t(
+                "本工程已展示 ROS 源码与部署配置。真实 ROS 运动控制尚未完成；需要使用现有网页控制时，请回到第 5 步选择 ESP32 + Web 并重新生成。",
+                "This project demonstrates ROS source and deployment configuration. Real ROS motion control is pending. To use the existing web console, return to step 5, select ESP32 + Web and regenerate.",
+              )}
+            </p>
+          </section>
+        ) : (
+          <>
+            <div className="foldflow-control-context">
+              <Robot size={22} />
+              <div>
+                <strong>{draft.name}</strong>
+                <p>
+                  {t(
+                    "连接 ESP 热点，在下方核对板上版本后手动连接。预览动作不会自动发送到实物。",
+                    "Join the ESP hotspot, check the board firmware below, then connect manually. Preview actions are never automatically sent to hardware.",
+                  )}
+                </p>
+              </div>
             </div>
-          </div>
-          <FoldBotConsole onBack={() => setStage(4)} />
-        </>
-      )}
+            <FoldBotConsole onBack={() => setStage(5)} />
+          </>
+        ))}
       {!valid && (
         <p className="foldflow-stale" role="alert">
           {t(
             "请检查名称、需求、参数范围或串口格式；无效配置不会保存或生成。",
             "Check the name, request, parameter ranges or serial format. Invalid configuration cannot save or generate.",
           )}
+        </p>
+      )}
+      {stage < 6 && !canVisit[stage + 1] && (
+        <p className="guided-stage-hint" role="status">
+          {stage === 0
+            ? t(
+                "请补齐上方三个问题，再选择硬件。",
+                "Complete the three questions above to select hardware.",
+              )
+            : stage === 1
+              ? t(
+                  "请选齐已适配组合；其他硬件可保存，完成适配后再生成接线。",
+                  "Select the supported combination. Other hardware can be saved and adapted before wiring generation.",
+                )
+              : stage === 2
+                ? t(
+                    "先生成接线方案并核对，再继续。",
+                    "Create and review a wiring proposal to continue.",
+                  )
+                : stage === 4
+                  ? t(
+                      "先生成当前方案的程序，再进入部署。",
+                      "Generate the current program before deployment.",
+                    )
+                  : t(
+                      "完成本步骤后即可继续。",
+                      "Complete this step to continue.",
+                    )}
         </p>
       )}
       <footer className="foldflow-footer">
@@ -1093,10 +1293,10 @@ export default function FoldBotWorkbench() {
           </button>
           <button
             className="button primary"
-            disabled={stage === 5 || blocked || !valid}
+            disabled={stage === 6 || blocked || !canVisit[stage + 1]}
             onClick={next}
           >
-            {stage < 5
+            {stage < 6
               ? `${t("下一步", "Next")} · ${stepLabels[stage + 1]}`
               : t("当前为控制步骤", "Control step")}
             <ArrowRight size={18} />

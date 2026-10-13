@@ -24,6 +24,7 @@
     "blockly": "13.3.0",
     "chart.js": "^4.5.1",
     "esptool-js": "0.7.0",
+    "monaco-editor": "0.57.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "three": "^0.180.0",

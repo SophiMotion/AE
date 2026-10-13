@@ -65,6 +65,11 @@ class FoldBotFlashSessions:
 
     def _validate_binding(self, binding):
         current = self.require_current_generation(binding.project_id, binding.revision)
+        # Guided ROS output contains host-side source, not an ESP32 application.
+        # Preserve legacy projects which generated both targets before this choice.
+        if (current.get('guided') is not None and
+                (current.get('workflow') or {}).get('control') == 'ros'):
+            raise HTTPException(409, 'guided_ros_usb_flash_not_supported')
         generation = current.get('generation') or {}
         if (generation.get('id') != binding.generation_id or
                 generation.get('sha256') != binding.source_hash):

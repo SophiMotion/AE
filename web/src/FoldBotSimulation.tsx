@@ -16,11 +16,15 @@ import {
   groupForPreviewAction,
   isVisualPose,
   previewActionForGroup,
+  previewFrameReadings,
+  previewWaveform,
   visualPoseMessage,
   visualReadings,
   type FoldBotActionGroup,
   type FoldBotPreviewAction,
   type FoldBotVisualPose,
+  type PreviewWaveformChannel,
+  type VisualReading,
 } from "./foldbotSimulationModel";
 import "./foldbotSimulation.css";
 
@@ -137,6 +141,345 @@ const actions: {
   },
 ];
 
+type WaveMetric = "angle" | "velocity" | "torque";
+
+function WaveformTrack({
+  metric,
+  channels,
+  readings,
+  progress,
+  manual,
+  onSeek,
+}: {
+  metric: WaveMetric;
+  channels: PreviewWaveformChannel[];
+  readings: VisualReading[];
+  progress: number;
+  manual: boolean;
+  onSeek: (progress: number) => void;
+}) {
+  const { t } = useI18n();
+  const box = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(800);
+  useEffect(() => {
+    const element = box.current;
+    if (!element) return;
+    const update = () => setWidth(Math.max(240, element.clientWidth));
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    update();
+    return () => observer.disconnect();
+  }, []);
+  const unit = metric === "angle" ? "°" : metric === "velocity" ? "°/s" : "N·m";
+  const title =
+    metric === "angle"
+      ? t("角度", "Angle")
+      : metric === "velocity"
+        ? t("角速度", "Angular velocity")
+        : t("扭矩", "Torque");
+  const noData = metric === "torque" || (manual && metric === "velocity");
+  const values =
+    metric === "torque"
+      ? []
+      : channels.flatMap((channel) =>
+          manual
+            ? [readings.find((row) => row.id === channel.id)!.value]
+            : channel.points.map((point) => point[metric]),
+        );
+  const low = values.length ? Math.min(0, ...values) : -1;
+  const high = values.length ? Math.max(0, ...values) : 1;
+  const pad = Math.max((high - low) * 0.12, metric === "angle" ? 5 : 1);
+  const min = low - pad,
+    max = high + pad;
+  const left = 49,
+    right = width - 14,
+    top = 24,
+    bottom = 124;
+  const x = (time: number) => left + (time / PREVIEW_SECONDS) * (right - left);
+  const y = (value: number) =>
+    bottom - ((value - min) / (max - min)) * (bottom - top);
+  const cursorX = x(manual ? 0 : progress * PREVIEW_SECONDS);
+  const emptyText =
+    metric === "torque"
+      ? t(
+          "暂无扭矩数据 · 未连接传感器或物理仿真",
+          "No torque data · sensors or physics simulation disconnected",
+        )
+      : manual
+        ? t(
+            "拖动仅改变姿态 · 尚无速度时间序列",
+            "Pose adjustment only · no velocity time series",
+          )
+        : t("选择上方部件查看曲线", "Select components above to view curves");
+  return (
+    <section className="fb-wave-track" data-metric={metric}>
+      <header>
+        <h4>
+          {title} <span>{unit}</span>
+        </h4>
+        <span>
+          {metric === "torque"
+            ? t("暂无数据", "No data")
+            : manual
+              ? t("当前姿态", "Current pose")
+              : t("模型轨迹", "Model trajectory")}
+        </span>
+      </header>
+      <div className="fb-wave-plot" ref={box}>
+        <svg
+          viewBox={`0 0 ${width} 155`}
+          role="img"
+          aria-label={`${title} · ${noData ? emptyText : manual ? t("当前模型姿态采样点", "Current model pose samples") : t("模型时间曲线，非实测数据", "Model time series, not measurements")}`}
+          onPointerDown={
+            manual
+              ? undefined
+              : (event) => {
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  const position =
+                    ((event.clientX - bounds.left) * width) / bounds.width;
+                  onSeek(
+                    Math.max(
+                      0,
+                      Math.min(1, (position - left) / (right - left)),
+                    ),
+                  );
+                }
+          }
+        >
+          {[0, 0.5, 1].map((fraction) => {
+            const value = min + (max - min) * fraction;
+            const chartY = bottom - fraction * (bottom - top);
+            return (
+              <g key={fraction}>
+                <line
+                  x1={left}
+                  x2={right}
+                  y1={chartY}
+                  y2={chartY}
+                  className="fb-wave-grid"
+                />
+                {!noData && channels.length > 0 && (
+                  <text x={left - 9} y={chartY + 3} textAnchor="end">
+                    {value.toFixed(Math.abs(value) >= 100 ? 0 : 1)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+          {[0, 2, 4, 6, 8].map((time) => (
+            <g key={time}>
+              <line
+                x1={x(time)}
+                x2={x(time)}
+                y1={top}
+                y2={bottom}
+                className="fb-wave-grid vertical"
+              />
+              {!manual && (
+                <text x={x(time)} y={146} textAnchor="middle">
+                  {time} s
+                </text>
+              )}
+            </g>
+          ))}
+          {!noData && channels.length > 0 && (
+            <line
+              x1={left}
+              x2={right}
+              y1={y(0)}
+              y2={y(0)}
+              className="fb-wave-zero"
+            />
+          )}
+          {!noData &&
+            !manual &&
+            channels.map((channel) => (
+              <polyline
+                key={channel.id}
+                data-channel={channel.id}
+                fill="none"
+                stroke={channel.color}
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                points={channel.points
+                  .map(
+                    (point) => `${x(point.time)},${y(point[metric] as number)}`,
+                  )
+                  .join(" ")}
+              />
+            ))}
+          {!manual && (
+            <line
+              x1={cursorX}
+              x2={cursorX}
+              y1={9}
+              y2={bottom + 3}
+              className="fb-wave-cursor"
+            />
+          )}
+          {!manual && (
+            <path
+              d={`M ${cursorX - 4} 9 L ${cursorX + 4} 9 L ${cursorX} 15 Z`}
+              fill="#ea4335"
+            />
+          )}
+          {!noData &&
+            channels.map((channel) => {
+              const row = readings.find((item) => item.id === channel.id)!;
+              const value = metric === "angle" ? row.value : row.velocity;
+              return value === null ? null : (
+                <circle
+                  key={channel.id}
+                  cx={cursorX}
+                  cy={y(value)}
+                  r={3.5}
+                  fill={channel.color}
+                  stroke="#fff"
+                  strokeWidth={1.5}
+                >
+                  <title>{`${t(...channel.name)}: ${value.toFixed(1)} ${unit}`}</title>
+                </circle>
+              );
+            })}
+          {manual && !noData && channels.length > 0 && (
+            <text x={left} y={146}>
+              {t("姿态采样（无时间历史）", "Pose sample (no time history)")}
+            </text>
+          )}
+        </svg>
+        {(noData || channels.length === 0) && (
+          <div className="fb-wave-empty">{emptyText}</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MotionWaveforms({
+  action,
+  progress,
+  readings,
+  manual,
+  onSeek,
+}: {
+  action: FoldBotPreviewAction;
+  progress: number;
+  readings: VisualReading[];
+  manual: boolean;
+  onSeek: (progress: number) => void;
+}) {
+  const { t } = useI18n();
+  const waveform = useMemo(() => previewWaveform(action), [action]);
+  const [selected, setSelected] = useState(() =>
+    waveform.channels.map((channel) => channel.id),
+  );
+  const channels = waveform.channels.filter((channel) =>
+    selected.includes(channel.id),
+  );
+  return (
+    <section
+      className="fb-waveforms"
+      aria-label={t(
+        "角度、速度与扭矩曲线",
+        "Angle, velocity and torque curves",
+      )}
+    >
+      <header className="fb-wave-heading">
+        <div>
+          <h3>{t("运动曲线", "Motion curves")}</h3>
+          <p>
+            {manual
+              ? t(
+                  "当前姿态点随滑杆更新；切换动作组查看时间曲线。",
+                  "Pose samples follow the sliders. Switch to action groups for time series.",
+                )
+              : t(
+                  "播放或拖动时间轴，模型与游标同步。点击部件名称可显示或隐藏曲线。",
+                  "Play or scrub the timeline to synchronize the model and cursor. Toggle components to show or hide curves.",
+                )}
+          </p>
+        </div>
+        <span className="fb-wave-source">
+          {t("模型预览 · 非实测", "Model preview · not measured")}
+        </span>
+      </header>
+      <div
+        className="fb-wave-channels"
+        role="group"
+        aria-label={t("曲线部件通道", "Curve component channels")}
+      >
+        {waveform.channels.map((channel) => (
+          <button
+            type="button"
+            key={channel.id}
+            aria-pressed={selected.includes(channel.id)}
+            onClick={() =>
+              setSelected((current) =>
+                current.includes(channel.id)
+                  ? current.filter((id) => id !== channel.id)
+                  : [...current, channel.id],
+              )
+            }
+          >
+            <span style={{ background: channel.color }} />
+            {t(...channel.name)}
+          </button>
+        ))}
+      </div>
+      {!manual && (
+        <div className="fb-wave-reference-frames">
+          <span>{t("模型参考帧", "Model reference frames")}</span>
+          <div
+            role="group"
+            aria-label={t("定位模型参考帧", "Seek to a model reference frame")}
+          >
+            {waveform.referenceFrames.map((time) => (
+              <button
+                type="button"
+                key={time}
+                aria-label={t(
+                  `跳转到 ${time} 秒模型参考帧`,
+                  `Seek to the ${time} second model reference frame`,
+                )}
+                aria-pressed={
+                  Math.abs(progress * PREVIEW_SECONDS - time) < 0.02
+                }
+                onClick={() => onSeek(time / PREVIEW_SECONDS)}
+              >
+                <span aria-hidden="true">◆</span>
+                {time} s
+              </button>
+            ))}
+          </div>
+          <output aria-live="off">
+            {(progress * PREVIEW_SECONDS).toFixed(1)} s
+          </output>
+        </div>
+      )}
+      <div className="fb-wave-tracks">
+        {(["angle", "velocity", "torque"] as const).map((metric) => (
+          <WaveformTrack
+            key={metric}
+            metric={metric}
+            channels={channels}
+            readings={readings}
+            progress={progress}
+            manual={manual}
+            onSeek={onSeek}
+          />
+        ))}
+      </div>
+      <p className="fb-wave-footnote">
+        {t(
+          "角度与角速度分轨显示；夹爪开度和履带相位见数值详情。扭矩等待真实数据接入。",
+          "Angle and angular velocity use separate tracks. Gripper opening and track phase are in numeric details. Torque awaits real data.",
+        )}
+      </p>
+    </section>
+  );
+}
+
 export default function FoldBotSimulation({
   compact = false,
   actionGroup,
@@ -200,38 +543,23 @@ export default function FoldBotSimulation({
     };
   }, [playing, action]);
 
-  const readings = useMemo(() => {
-    const before =
-      playing && progress > 0.002
-        ? actionVisualPose(action, progress - 0.002)
-        : undefined;
-    return visualReadings(
-      pose,
-      before,
-      before ? 0.002 * PREVIEW_SECONDS : undefined,
-    );
-  }, [pose, action, playing, progress]);
-  const curves = useMemo(
+  const readings = useMemo(
     () =>
-      [0, 1, 2].map((index) =>
-        Array.from({ length: 65 }, (_, i) => {
-          const point = actionVisualPose(action, i / 64);
-          const value =
-            index === 0
-              ? point.fold1
-              : index === 1
-                ? point.fold2
-                : (point.joints[0] + 1) / 2;
-          return `${(i / 64) * 640},${70 - value * 56}`;
-        }).join(" "),
-      ),
-    [action],
+      mode === "actions"
+        ? previewFrameReadings(action, progress)
+        : visualReadings(pose),
+    [pose, mode, action, progress],
   );
 
   if (compact) return <FoldBotModelPreview pose={pose} />;
   const stopAndSet = (next: FoldBotVisualPose) => {
     setPlaying(false);
     setPose(next);
+  };
+  const seek = (next: number) => {
+    setPlaying(false);
+    setProgress(next);
+    setPose(actionVisualPose(action, next));
   };
   return (
     <section
@@ -444,55 +772,17 @@ export default function FoldBotSimulation({
             min={0}
             max={1000}
             value={Math.round(progress * 1000)}
-            onChange={(event) => {
-              const next = Number(event.target.value) / 1000;
-              setPlaying(false);
-              setProgress(next);
-              setPose(actionVisualPose(action, next));
-            }}
+            onChange={(event) => seek(Number(event.target.value) / 1000)}
           />
-          <svg
-            viewBox="0 0 640 84"
-            role="img"
-            aria-label={t(
-              "模型轨迹示意：第一板、第二板、机械臂底座",
-              "Illustrative model curves: lower panel, upper panel, arm base",
-            )}
-          >
-            {[14, 42, 70].map((y) => (
-              <line key={y} x1="0" x2="640" y1={y} y2={y} stroke="#e1e7f0" />
-            ))}
-            {curves.map((points, i) => (
-              <polyline
-                key={i}
-                fill="none"
-                stroke={["#002fa7", "#34a853", "#fbbc05"][i]}
-                strokeWidth="2.3"
-                points={points}
-              />
-            ))}
-            <line
-              x1={progress * 640}
-              x2={progress * 640}
-              y1="3"
-              y2="80"
-              stroke="#ea4335"
-              strokeWidth="2"
-            />
-          </svg>
-          <div className="fb-sim-legend">
-            <span>{t("蓝：第一板", "Blue: lower panel")}</span>
-            <span>{t("绿：第二板", "Green: upper panel")}</span>
-            <span>{t("黄：底座", "Yellow: arm base")}</span>
-            <small>
-              {t(
-                "归一化模型轨迹 · 非传感器曲线",
-                "Normalized model curves · not sensor data",
-              )}
-            </small>
-          </div>
         </div>
       )}
+      <MotionWaveforms
+        action={action}
+        progress={progress}
+        readings={readings}
+        manual={mode === "sliders"}
+        onSeek={seek}
+      />
       <div className="fb-sim-analysis">
         <section className="fb-sim-warnings">
           <h3>
@@ -509,8 +799,8 @@ export default function FoldBotSimulation({
           <p>
             <span className="fb-sim-dot blue" />
             {t(
-              "数据：角度来自原模型几何；速度为播放时的模型变化率。",
-              "Data: angles come from model geometry; velocity is derived while the preview plays.",
+              "数据：角度来自原模型几何；角速度是示例轨迹对时间的变化率。",
+              "Data: angles come from model geometry; angular velocity is the sample trajectory's rate of change over time.",
             )}
           </p>
           <p>
@@ -542,8 +832,10 @@ export default function FoldBotSimulation({
             </a>
           </details>
         </section>
-        <section className="fb-sim-table-panel">
-          <h3>{t("部件状态表", "Component status")}</h3>
+        <details className="fb-sim-table-panel">
+          <summary>
+            {t("查看部件数值详情", "View numeric component details")}
+          </summary>
           <p>
             {t(
               "模型参数 · 不用于下发实物角度",
@@ -579,7 +871,7 @@ export default function FoldBotSimulation({
               </tbody>
             </table>
           </div>
-        </section>
+        </details>
       </div>
     </section>
   );

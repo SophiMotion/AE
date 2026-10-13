@@ -359,6 +359,206 @@
   color: #7c8ba0;
   margin: -5px 0 14px;
 }
+.fb-sim-table-panel > summary {
+  cursor: pointer;
+  color: #002fa7;
+  font-size: 13px;
+  font-weight: 600;
+}
+.fb-sim-table-panel[open] > summary {
+  margin-bottom: 18px;
+}
+.fb-waveforms {
+  margin-top: 20px;
+  padding: 22px;
+  border: 1px solid var(--fb-line);
+  border-radius: 14px;
+  background: #fff;
+  min-width: 0;
+}
+.fb-wave-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+}
+.fb-wave-heading h3 {
+  margin: 0 0 8px;
+  color: #243959;
+  font-size: 17px;
+}
+.fb-wave-heading p,
+.fb-wave-footnote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #728199;
+}
+.fb-wave-source {
+  flex-shrink: 0;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: #edf3ff;
+  color: #456cae;
+  font-size: 11px;
+}
+.fb-wave-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 16px 0;
+}
+.fb-wave-channels button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid #e2e8f1;
+  border-radius: 7px;
+  background: #f7f9fc;
+  color: #405572;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.fb-wave-channels button[aria-pressed="false"] {
+  background: #fff;
+  color: #8d98a8;
+  text-decoration: line-through;
+}
+.fb-wave-channels button > span {
+  width: 15px;
+  height: 3px;
+  border-radius: 2px;
+}
+.fb-wave-channels button[aria-pressed="false"] > span {
+  opacity: 0.25;
+}
+.fb-wave-reference-frames {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border-top: 1px solid #e9eef5;
+  padding: 13px 0 16px;
+  font-size: 11px;
+  color: #728199;
+}
+.fb-wave-reference-frames > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
+}
+.fb-wave-reference-frames button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: #63788b;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.fb-wave-reference-frames button > span {
+  font-size: 12px;
+  color: #34a853;
+}
+.fb-wave-reference-frames button[aria-pressed="true"] {
+  background: #edf3ff;
+  color: #002fa7;
+}
+.fb-wave-reference-frames output {
+  min-width: 42px;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #d84638;
+}
+.fb-wave-tracks {
+  display: grid;
+  gap: 10px;
+}
+.fb-wave-track {
+  border: 1px solid #e2e9f2;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #f9fbff;
+  min-width: 0;
+}
+.fb-wave-track > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px 0;
+  gap: 15px;
+}
+.fb-wave-track h4 {
+  margin: 0;
+  color: #334b6b;
+  font-size: 12px;
+  font-weight: 600;
+}
+.fb-wave-track h4 span {
+  color: #7c8ea6;
+  margin-left: 5px;
+  font-weight: 400;
+}
+.fb-wave-track > header > span {
+  font-size: 10px;
+  color: #7c8ea6;
+}
+.fb-wave-plot {
+  position: relative;
+  min-width: 0;
+}
+.fb-wave-plot svg {
+  width: 100%;
+  display: block;
+  height: 155px;
+  user-select: none;
+}
+.fb-wave-plot svg text {
+  fill: #8291a6;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+}
+.fb-wave-grid {
+  stroke: #e4ebf4;
+  stroke-width: 1;
+}
+.fb-wave-grid.vertical {
+  stroke-dasharray: 3 4;
+}
+.fb-wave-zero {
+  stroke: #c6d1e0;
+  stroke-width: 1;
+}
+.fb-wave-cursor {
+  stroke: #ea4335;
+  stroke-width: 1.5;
+}
+.fb-wave-empty {
+  position: absolute;
+  left: 58px;
+  right: 20px;
+  top: 55px;
+  padding: 8px 12px;
+  margin: auto;
+  max-width: 430px;
+  color: #8291a6;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+  background: #f9fbffed;
+  pointer-events: none;
+}
+.fb-wave-footnote {
+  padding-top: 13px;
+  font-size: 11px;
+}
 .fb-sim-table-wrap {
   overflow-x: auto;
 }
@@ -447,6 +647,23 @@
   }
   .fb-sim-table-panel {
     padding: 14px 10px;
+  }
+  .fb-waveforms {
+    padding: 14px;
+  }
+  .fb-wave-heading {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .fb-wave-reference-frames {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .fb-wave-reference-frames > span {
+    width: 100%;
+  }
+  .fb-wave-reference-frames button {
+    padding: 7px 4px;
   }
 }
 @media (max-width: 420px) {

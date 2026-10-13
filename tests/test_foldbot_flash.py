@@ -48,6 +48,49 @@ def test_generation_binding_mismatch_cannot_reserve(field, value):
     assert sessions.arbiter.status()['occupied'] is False
 
 
+def test_guided_ros_cannot_reserve_usb_but_guided_esp_remains_supported():
+    sessions, state, _, events = fixture_sessions()
+    state.update(guided={'robot_choice': 'foldbot'}, workflow={'control': 'ros'})
+    with pytest.raises(HTTPException) as error:
+        sessions.create_session(BODY)
+    assert error.value.status_code == 409
+    assert error.value.detail == 'guided_ros_usb_flash_not_supported'
+    assert not sessions.arbiter.status()['occupied']
+    assert not sessions.status()['active']
+    assert events == []
+    state['workflow']['control'] = 'esp'
+    result = sessions.create_session(BODY)
+    assert result['ok'] is True
+    assert sessions.arbiter.owns(result['session_id'])
+    sessions.stop(result['session_id'])
+
+
+@pytest.mark.parametrize('guided', ['omitted', None])
+def test_legacy_ros_project_without_guided_keeps_usb_compatibility(guided):
+    sessions, state, _, _ = fixture_sessions()
+    state['workflow'] = {'control': 'ros'}
+    if guided is None:
+        state['guided'] = None
+    result = sessions.create_session(BODY)
+    assert result['ok'] is True
+    sessions.stop(result['session_id'])
+
+
+def test_switch_to_guided_ros_invalidates_flash_without_releasing_live_usb_exclusion():
+    sessions, state, _, _ = fixture_sessions()
+    state.update(guided={'robot_choice': 'foldbot'}, workflow={'control': 'esp'})
+    token = sessions.create_session(BODY)['session_id']
+    state['workflow']['control'] = 'ros'
+    with pytest.raises(HTTPException) as error:
+        sessions.heartbeat(token)
+    assert error.value.status_code == 409
+    assert 'generation_changed' in error.value.detail
+    assert sessions.arbiter.owns(token)
+    assert sessions.status()['recovery_required'] is True
+    sessions.stop(token)
+    assert not sessions.arbiter.status()['occupied']
+
+
 @pytest.mark.parametrize('mode', ['console', 'simplified', 'usb_flash'])
 def test_shared_arbiter_denies_existing_control_and_other_flash_owner(mode):
     arbiter = FoldBotArbiter()

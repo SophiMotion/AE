@@ -1,0 +1,264 @@
+.ae-project-launcher {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 64px 28px 48px;
+  color: #202b40;
+}
+.ae-launcher-intro {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.ae-launcher-eyebrow {
+  color: #002fa7;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+}
+.ae-launcher-intro h1 {
+  font-size: clamp(30px, 4vw, 48px);
+  letter-spacing: -1.8px;
+  margin: 20px 0 14px;
+}
+.ae-launcher-intro p {
+  color: #68778e;
+  font-size: 17px;
+  line-height: 1.7;
+}
+.ae-launcher-input {
+  padding: 26px;
+  background: white;
+  border: 1px solid #dce3ef;
+  border-radius: 22px;
+  box-shadow: 0 10px 36px #25448708;
+}
+.ae-launcher-input textarea {
+  min-height: 130px;
+}
+.ae-launcher-bottom {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+.ae-launcher-bottom > span {
+  font-size: 13px;
+  color: #758097;
+}
+.ae-launcher-bottom .button {
+  flex-shrink: 0;
+}
+.ae-launcher-examples {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0 40px;
+  font-size: 13px;
+  color: #718098;
+}
+.ae-launcher-examples button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dce3ef;
+  background: white;
+  padding: 10px 16px;
+  border-radius: 24px;
+  color: #365780;
+}
+.ae-launcher-journey {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #dce3ef;
+  border-bottom: 1px solid #dce3ef;
+  padding: 20px 0;
+  gap: 10px;
+  font-size: 13px;
+  color: #52627a;
+}
+.ae-launcher-journey span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ae-launcher-journey b {
+  color: #99a5b6;
+  font-size: 11px;
+  font-weight: 500;
+}
+.ae-launcher-history {
+  margin-top: 32px;
+}
+.ae-launcher-history summary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 650;
+}
+.ae-launcher-history summary small {
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: #e7edf7;
+}
+.ae-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.ae-history-grid > button {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid #dce3ef;
+  border-radius: 12px;
+  background: white;
+  text-align: left;
+  min-width: 0;
+  color: #24344b;
+}
+.ae-history-grid > button:hover {
+  border-color: #002fa7;
+}
+.ae-history-grid span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  color: #718098;
+}
+.ae-history-grid small {
+  color: #7e8b9f;
+}
+.ae-launcher-footnote {
+  font-size: 12px;
+  color: #7e8b9f;
+  margin-top: 32px;
+  line-height: 1.8;
+}
+.foldflow.guided-journey .foldflow-steps {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.guided-journey .foldflow-steps button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.guided-journey .foldflow-steps button.active:disabled {
+  opacity: 1;
+}
+.guided-journey .foldflow-heading h1 {
+  font-size: 28px;
+}
+.guided-journey .ae-back-entry {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #002fa7;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.guided-journey .guided-wiring-placeholder {
+  padding: 48px 28px;
+  text-align: center;
+}
+.guided-wiring-placeholder p {
+  color: #68778e;
+  max-width: 620px;
+  margin: 12px auto 24px;
+}
+.guided-stage-hint {
+  font-size: 13px;
+  color: #6c7890;
+  line-height: 1.6;
+}
+.guided-journey .foldflow-footer {
+  flex-wrap: wrap;
+}
+.guided-complete-choice {
+  border-top: 1px solid #dfe5ef;
+  padding-top: 22px;
+  margin-top: 20px;
+}
+.guided-complete-choice p {
+  color: #718098;
+}
+.guided-journey .foldflow-section-heading .foldflow-project-name {
+  margin-left: auto;
+}
+.guided-journey .foldflow-steps {
+  position: relative;
+}
+.guided-journey input,
+.guided-journey select {
+  max-width: 100%;
+}
+@media (max-width: 850px) {
+  .ae-project-launcher {
+    padding: 34px 18px;
+  }
+  .ae-launcher-bottom {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ae-launcher-journey {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+  }
+  .ae-launcher-input {
+    padding: 18px;
+  }
+  .guided-journey.foldbot-workbench.foldflow {
+    padding: 20px 14px;
+  }
+  .guided-journey .foldflow-steps {
+    display: flex;
+    overflow-x: auto;
+  }
+  .guided-journey .foldflow-steps button {
+    flex: 0 0 116px;
+  }
+  .ae-history-grid {
+    grid-template-columns: 1fr;
+  }
+  .guided-journey .foldflow-footer > div {
+    flex-wrap: wrap;
+  }
+  .guided-journey .foldflow-heading {
+    align-items: flex-start;
+  }
+}
+
+.ae-history-item {
+  border: 1px solid #dce3ef;
+  border-radius: 12px;
+  background: white;
+  overflow: hidden;
+}
+.ae-history-item > button {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  color: #24344b;
+}
+.ae-history-item > a {
+  display: block;
+  border-top: 1px solid #edf0f6;
+  padding: 10px 18px;
+  font-size: 13px;
+  color: #002fa7;
+}
+.ae-history-item:hover {
+  border-color: #002fa7;
+}

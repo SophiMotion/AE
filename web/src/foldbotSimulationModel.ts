@@ -157,3 +157,80 @@ export function visualReadings(
     source: "visual_preview",
   }));
 }
+
+/** Sample the derivative of the authored preview, not elapsed browser playback. */
+export function previewFrameReadings(
+  action: FoldBotPreviewAction,
+  progress: number,
+): VisualReading[] {
+  const pose = actionVisualPose(action, progress);
+  const x = Math.max(0, Math.min(1, progress));
+  const start = Math.max(0, x - 0.0001);
+  const end = Math.min(1, x + 0.0001);
+  const derivatives = visualReadings(
+    actionVisualPose(action, end),
+    actionVisualPose(action, start),
+    (end - start) * PREVIEW_SECONDS,
+  );
+  return visualReadings(pose).map((row, i) => ({
+    ...row,
+    velocity: derivatives[i].velocity,
+  }));
+}
+
+export const PREVIEW_CHANNEL_COLORS = [
+  "#002fa7",
+  "#278443",
+  "#a05bb7",
+  "#d84638",
+  "#b58000",
+  "#008699",
+  "#6472d0",
+] as const;
+export type PreviewWaveformPoint = {
+  time: number;
+  angle: number;
+  velocity: number;
+  torque: null;
+};
+export type PreviewWaveformChannel = {
+  id: string;
+  name: [string, string];
+  color: string;
+  points: PreviewWaveformPoint[];
+};
+export type PreviewWaveform = {
+  source: "visual_preview";
+  seconds: number;
+  referenceFrames: number[];
+  channels: PreviewWaveformChannel[];
+};
+/** Only angular channels share these axes. Gripper % and track phase stay separate. */
+export function previewWaveform(
+  action: FoldBotPreviewAction,
+  samples = 129,
+): PreviewWaveform {
+  if (!Number.isInteger(samples) || samples < 2 || samples > 1025)
+    throw new Error("Preview samples must be an integer between 2 and 1025");
+  const frames = Array.from({ length: samples }, (_, i) =>
+    previewFrameReadings(action, i / (samples - 1)),
+  );
+  return {
+    source: "visual_preview",
+    seconds: PREVIEW_SECONDS,
+    referenceFrames: [0, 2, 4, 6, 8],
+    channels: frames[0]
+      .filter((row) => row.unit === "°")
+      .map((row, index) => ({
+        id: row.id,
+        name: row.name,
+        color: PREVIEW_CHANNEL_COLORS[index],
+        points: frames.map((frame, i) => ({
+          time: (i / (samples - 1)) * PREVIEW_SECONDS,
+          angle: frame[index].value,
+          velocity: frame[index].velocity!,
+          torque: null,
+        })),
+      })),
+  };
+}

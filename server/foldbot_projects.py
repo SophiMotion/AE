@@ -71,6 +71,40 @@ class FoldBotFlowConfig(BaseModel):
         return value
 
 
+class GuidedHardware(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    controller: Literal['unselected', 'sophicar-s3', 'other']
+    fold_driver: Literal['unselected', 'external-step-dir', 'other']
+    arm_bus: Literal['unselected', 'buslinker-hx', 'other']
+    chassis: Literal['unselected', 'sophicar-m1-m2', 'other']
+    notes: str = Field(max_length=2000, strict=True)
+
+    @field_validator('notes')
+    @classmethod
+    def no_nul(cls, value):
+        if '\x00' in value:
+            raise ValueError('硬件备注不能包含 NUL。')
+        return value
+
+
+class GuidedConfig(BaseModel):
+    """Strict user selections. Unknown hardware remains a draft, never a guessed pinout."""
+    model_config = ConfigDict(extra='forbid')
+    schema_version: int = Field(ge=1, le=1, strict=True)
+    robot_choice: Literal['undecided', 'foldbot', 'other']
+    purpose: str = Field(max_length=2000, strict=True)
+    primary_task: Literal['unselected', 'fold-cycle', 'arm-demo', 'chassis-demo', 'custom']
+    hardware: GuidedHardware
+    wiring_binding_sha256: str | None = Field(min_length=64, max_length=64, pattern=r'^[a-f0-9]{64}$', strict=True)
+
+    @field_validator('purpose')
+    @classmethod
+    def no_nul(cls, value):
+        if '\x00' in value:
+            raise ValueError('预期结果不能包含 NUL。')
+        return value
+
+
 class ProjectInput(BaseModel):
     model_config = ConfigDict(extra='forbid')
     name: str = Field(min_length=1, max_length=120)
@@ -79,8 +113,9 @@ class ProjectInput(BaseModel):
     drive_duration_ms: int = Field(default=200, ge=1, le=2000, strict=True)
     reviewed: StrictBool = False
     workflow: FoldBotFlowConfig | None = None
+    guided: GuidedConfig | None = None
 
-    @field_validator('workflow', mode='before')
+    @field_validator('workflow', 'guided', mode='before')
     @classmethod
     def workflow_not_null(cls, value):
         if value is None:
@@ -118,6 +153,8 @@ def specification(project):
              ('id', 'name', 'request', 'revision', 'drive_level', 'drive_duration_ms')}
     if project.get('workflow') is not None:
         value['workflow'] = deepcopy(project['workflow'])
+    if project.get('guided') is not None:
+        value['guided'] = deepcopy(project['guided'])
     return value
 
 
@@ -155,6 +192,78 @@ class FoldBotProjects:
             'evidence': {**EVIDENCE, 'source_generated': False},
         }
 
+    def wiring_preview(self, body):
+        """Pure source selection. No project write, device access or physical certification."""
+        body = body if isinstance(body, ProjectInput) else ProjectInput.model_validate(body)
+        guided = body.guided
+        if (guided is None or guided.robot_choice == 'undecided' or
+                not guided.purpose.strip() or guided.primary_task == 'unselected'):
+            raise HTTPException(409, 'guided_requirements_incomplete')
+        if (guided.robot_choice != 'foldbot' or
+                guided.hardware.controller != 'sophicar-s3' or
+                guided.hardware.fold_driver != 'external-step-dir' or
+                guided.hardware.arm_bus != 'buslinker-hx' or
+                guided.hardware.chassis != 'sophicar-m1-m2'):
+            raise HTTPException(409, 'guided_hardware_not_adapted')
+        provenance, _ = self._templates()
+        hardware = guided.hardware.model_dump()
+        hardware['notes'] = hardware['notes'].strip()
+        inputs = {
+            'request': body.request.strip(), 'robot_choice': guided.robot_choice,
+            'purpose': guided.purpose.strip(), 'primary_task': guided.primary_task,
+            'hardware': hardware,
+        }
+        binding = {
+            'schema_version': 1, 'source_key': TEMPLATE_ID, **inputs,
+            'source_sha256': sorted([
+                {'path': item['path'], 'sanitized_sha256': item['sanitized_sha256']}
+                for item in provenance['sources']], key=lambda item: item['path']),
+        }
+        return {
+            'binding_sha256': digest(canonical(binding)), 'input_key': canonical(inputs),
+            'source_key': TEMPLATE_ID,
+            'connections': [
+                {'id': 'fold1', 'label': '第一折叠板', 'label_en': 'Fold plate 1',
+                 'pins': 'DIR GPIO3 · STEP GPIO8 · EN GPIO10',
+                 'connection': '外置驱动器 DIR+ / PUL+ / ENA+；控制负端接逻辑 GND',
+                 'connection_en': 'External driver DIR+ / PUL+ / ENA+; negative inputs to logic GND'},
+                {'id': 'fold2', 'label': '第二折叠板', 'label_en': 'Fold plate 2',
+                 'pins': 'DIR GPIO4 · STEP GPIO5 · EN GPIO9',
+                 'connection': '外置驱动器 DIR+ / PUL+ / ENA+；控制负端接逻辑 GND',
+                 'connection_en': 'External driver DIR+ / PUL+ / ENA+; negative inputs to logic GND'},
+                {'id': 'arm', 'label': '机械臂总线', 'label_en': 'Arm bus',
+                 'pins': 'TX GPIO6 → RX · RX GPIO7 ← TX',
+                 'connection': 'BusLinker TTL + 共地；舵机使用独立适配电源',
+                 'connection_en': 'BusLinker TTL and common ground; appropriate separate servo supply'},
+                {'id': 'chassis', 'label': '履带底盘', 'label_en': 'Tracked chassis',
+                 'pins': 'M1 GPIO38 / 37 · M2 GPIO36 / 35',
+                 'connection': 'GPIO35–37 与 N16R8 存储器兼容性待确认，勿作为已验证接线',
+                 'connection_en': 'GPIO35–37 / N16R8 memory compatibility is unresolved, not verified wiring'},
+                {'id': 'limits', 'label': '限位开关', 'label_en': 'Limit switches',
+                 'pins': 'GPIO16 / 17 / 18 / 39',
+                 'connection': '当前源码禁用；上电后需按实物确认端位，不能自动归零',
+                 'connection_en': 'Disabled in source; confirm physical endpoints after power-on, no automatic homing'},
+            ],
+            'warnings': [
+                '此接线来自已选硬件的现有源码，是待核对方案，不代表实物已连接或验证。',
+                'GPIO35–37 与 ESP32-S3 N16R8 内部存储器的兼容性待确认。',
+                '外置驱动型号、电流与电源、舵机波特率及实际行程须现场核对；不推测未知参数。',
+            ],
+            'physical_verified': False,
+        }
+
+    def _require_guided_ready(self, project):
+        if project.get('guided') is None:
+            return
+        if project.get('workflow') is None:
+            raise HTTPException(409, 'guided_control_not_selected')
+        preview = self.wiring_preview({key: project[key] for key in
+            ('name', 'request', 'drive_level', 'drive_duration_ms', 'guided', 'workflow')})
+        if project['guided']['wiring_binding_sha256'] != preview['binding_sha256']:
+            raise HTTPException(409, 'guided_wiring_binding_stale')
+        if not project['workflow']['wiring_reviewed']:
+            raise HTTPException(409, 'guided_wiring_review_required')
+
     def list(self):
         return self.store.list(PROJECT_KIND)
 
@@ -175,7 +284,8 @@ class FoldBotProjects:
         body = body if isinstance(body, ProjectInput) else ProjectInput.model_validate(body)
         stamp = now()
         project = {
-            'id': uid(), **body.model_dump(exclude_none=True), 'reviewed': False, 'revision': 1,
+            'id': uid(), **{key: value for key, value in body.model_dump().items() if value is not None},
+            'reviewed': False, 'revision': 1,
             'created_at': stamp, 'updated_at': stamp, 'generation': None,
             'warnings': list(WARNINGS),
         }
@@ -190,7 +300,10 @@ class FoldBotProjects:
             project = self.get(project_id)
             if body.revision != project['revision']:
                 raise HTTPException(409, '工程已更新，请刷新后重新核对当前修订。')
-            values = body.model_dump(exclude={'revision', 'reviewed'}, exclude_none=True)
+            # Only omit absent top-level legacy fields. A nested null digest is a valid,
+            # intentional "not generated yet" value and must survive save/reload.
+            values = {key: value for key, value in body.model_dump(exclude={'revision', 'reviewed'}).items()
+                      if value is not None}
             # Legacy clients must preserve a new client's workflow rather than erase it.
             if all(project.get(key) == value for key, value in values.items()):
                 return project
@@ -201,7 +314,7 @@ class FoldBotProjects:
             return project
 
     def _config(self, project):
-        return {
+        value = {
             'schema_version': 1, 'template_id': TEMPLATE_ID,
             'project': specification(project),
             'local_control': {
@@ -221,6 +334,14 @@ class FoldBotProjects:
                          'default_network_output': False, 'default_motion_output': False},
             'evidence': deepcopy(EVIDENCE), 'warnings': list(WARNINGS),
         }
+        if project.get('guided') is not None:
+            control = project['workflow']['control']
+            value['output_contract'] = {
+                'selected_target': control, 'firmware_included': control == 'esp',
+                'ros_demo_included': control == 'ros', 'hardware_verified': False,
+                'wiring_binding_sha256': project['guided']['wiring_binding_sha256'],
+            }
+        return value
 
     def _files(self, project, config, provenance, templates):
         files = {}
@@ -282,6 +403,14 @@ class FoldBotProjects:
             '  <exec_depend>rclpy</exec_depend>\n'
             '  <export><build_type>ament_python</build_type></export>\n</package>\n')
         add('README.md', 'markdown', '源码来源、复现方法、硬件待确认项和证据边界。', self._readme(project))
+        if project.get('guided') is not None:
+            control = project['workflow']['control']
+            omitted_prefix = 'ros2/' if control == 'esp' else 'firmware/'
+            files = {path: item for path, item in files.items() if not path.startswith(omitted_prefix)}
+            preview = self.wiring_preview({key: project[key] for key in
+                ('name', 'request', 'drive_level', 'drive_duration_ms', 'guided', 'workflow')})
+            add('config/guided.json', 'json', '需求问答、用户选择的硬件及接线摘要；不代表物理兼容性验收。', json_text(project['guided']))
+            add('config/wiring_preview.json', 'json', '与当前需求及硬件选择绑定的接线产物，含来源和未核对事项。', json_text(preview))
         manifest = {'schema_version': 1, 'project_id': project['id'], 'revision': project['revision'],
                     'template_id': TEMPLATE_ID, 'config_sha256': digest(canonical(config)),
                     'evidence': deepcopy(EVIDENCE),
@@ -329,6 +458,8 @@ class FoldBotProjects:
             '        "serial_configuration_only": True,')
 
     def _deployment(self, project):
+        if project.get('guided') is not None:
+            return self._guided_deployment(project)
         flow = project['workflow']
         return f'''# FoldBot deployment choices (revision {project['revision']})
 
@@ -358,6 +489,8 @@ Reviewing wiring information acknowledges the source description; it does not re
 '''
 
     def _readme(self, project):
+        if project.get('guided') is not None:
+            return self._guided_readme(project)
         return f'''# FoldBot generated source snapshot
 
 Project ID: `{project['id']}` · PRD revision: `{project['revision']}`
@@ -414,12 +547,115 @@ AP 口令常量改为本地配置宏，同时隐藏串口口令输出。原始�
   全停属于本机控制层；此源码生成记录本身不证明任何这些功能已在硬件验收。
 '''
 
+    def _guided_deployment(self, project):
+        flow = project['workflow']
+        if flow['control'] == 'esp':
+            target = '''## ESP32 source and USB update
+
+The selected output is the complete ESP32 robot firmware in `firmware/foldbot/`.
+The ROS demo package is not included in this export.
+Set the private AP password in `foldbot_local_config.h` locally before compiling.
+Confirm the actual board, flash size, partition layout, dependencies and toolchain.
+Source generation does not compile a binary. Do not use a historical .bin in its place.
+The browser USB update needs a newly built application image and matching partition evidence;
+it is not an empty-board installer and must not overwrite NVS or change the partition map.
+USB write/readback alone is not physical acceptance. Verify the running firmware version separately.
+'''
+        else:
+            target = f'''## ROS 2 offline demonstration
+
+The selected output is `ros2/foldbot_demo/`. ESP32 firmware is not included.
+Requested host: `{flow['ros_host']}`. Requested ROS 2 distribution: `{flow['ros_version']}`.
+Serial label: `{flow['ros_serial'] or 'unselected'}`. This is configuration data only.
+ROS runs on its host and is not firmware flashed through a COM port.
+The package defaults to printing one offline JSON record. `--run-ros` is log-only;
+it does not implement a serial, WebSocket or motor-control transport.
+No new USB flash session should be started from this ROS-only artifact.
+The AE final console can separately use an existing ESP32 firmware via its hotspot,
+after explicit connection checks. This does not validate ROS control.
+'''
+        return f'''# Deployment for revision {project['revision']}
+
+Control target: `{flow['control']}`. No transport is opened by this file.
+The frozen choices are in `config/workflow.json` and `config/guided.json`.
+The generated source wiring is `config/wiring_preview.json`; physical_verified is false.
+{target}
+## Evidence boundary
+
+Generated source/configuration only. No build, flash, Gazebo, ROS execution or physical motion was verified.
+User requirement text is recorded and bound to the source snapshot; it is not converted into
+an arbitrary new motor controller. The known FoldBot template preserves the whole-robot behavior.
+GPIO35–37 / N16R8 compatibility, external-driver identity, supply/current, servo baud rate,
+calibrated travel and live firmwareBuild remain field checks. Do not infer them from this export.
+'''
+
+    def _guided_readme(self, project):
+        flow = project['workflow']
+        if flow['control'] == 'esp':
+            target = '''## ESP32 工程
+
+本次仅输出 ESP32 固件，不包含 ROS 包。
+`firmware/foldbot/foldbot.ino`、`web_ui.h` 复用现有 Sophicar 完整整机源码，
+保留网页、底盘、双折叠板和机械臂。`foldbot_local_config.h` 要求在本地设置
+8 至 63 字符私有 AP 口令；未设置时主动阻止构建，配置后不要公开该文件。
+已记录来源设置为 ESP32S3 Dev Module、Flash 16MB、PSRAM Disabled、USB CDC On Boot Enabled；
+这些是来源记录，不能替代现场板型确认。固件依赖 Arduino-ESP32、ESP-IDF GPTimer、
+cJSON 和 WiFi；工具链版本未锁定并验收，需在目标环境单独编译。
+浏览器 USB 更新需要本修订新编译的应用 .bin 和匹配的分区证据；没有打包任何历史 .bin。
+它仅更新匹配分区中的应用，不整片擦除、不替换分区或 NVS、不自动运动。
+'''
+        else:
+            target = '''## ROS 演示工程
+
+本次仅输出 `ros2/foldbot_demo`，不包含 ESP32 固件，也不提供本工程的 USB 烧录入口。
+默认从包目录运行 `python -m foldbot_demo.demo` 只打印标为离线示例的 JSON；
+不导入 rclpy、不连接设备、不发送运动指令。生成服务没有执行该命令。
+在单独核对的 ROS 环境构建安装后，`ros2 run foldbot_demo demo` 同样默认离线退出；
+`--run-ros` 仅创建日志节点，可能产生 DDS 发现流量，没有机器人运动发布器。
+依赖 `ament_python`、`rclpy`、`setuptools`，所选主机/ROS 发行版仍须部署验证。
+ROS 运行在主机上，不能经 COM 口当作 ESP 固件烧录。串口标签仅作后续传输配置记录。
+最后的 AE 原版控制台可以另行连接已安装固件的 ESP 热点，这不代表 ROS 已控制实机。
+'''
+        return f'''# 引导式机器人源码工程
+
+工程 ID：`{project['id']}` · 需求修订：`{project['revision']}` · 输出方案：`{flow['control']}`
+
+此工程从用户需求和硬件选择生成可追溯的接线方案，再复用已适配 FoldBot 源码。
+现阶段仅完整适配现有 Sophicar 折叠机器人硬件组合；未知机器人和硬件保留待适配。
+需求文字会记录到工程，不等于自动实现任意新动作或把仿真滑杆发送到实物。
+
+## 文件导航
+
+- `prd.json`：冻结的原始需求、问答和修订。
+- `config/guided.json`：目标、主要动作、硬件选择及接线绑定摘要。
+- `config/wiring_preview.json`：生成的接线方案及来源，实物验证状态为 false。
+- `config/wiring.json`：已有整机源码的引脚与未确认约束。
+- `config/workflow.json`：所选 ESP/ROS 路线及部署设置。
+- `config/action_preview.json`：纯视觉预览设置，角度/速度/扭矩测量值均为 null。
+- `config/foldbot_config.json`：AE 控制边界，不能覆盖 NVS 标定。
+- `provenance.json`：模板来源和 SHA-256；`manifest.json`：文件名、类型、用途及校验。
+- `deployment.md`：所选路线的依赖、部署目标与操作边界。
+{target}
+## 核验要求
+
+接线产物绑定当前需求、期望结果、动作类别、硬件组合和模板源码摘要。
+修改这些内容后须重新生成接线并确认；修改控制路线或部署设置须重新生成工程。
+确认源码接线不代表现场兼容性核验。GPIO35–37 与 N16R8 内部存储器仍存在兼容性疑点。
+外置驱动具体型号、相电流、电源、舵机波特率和标定行程不能推测。
+禁限位版本上电后要人工确认真实端位；开环脉冲、原始舵机单位与实测角度不同。
+连接前读取实际 firmwareBuild；磁盘源码版本不是板上版本。
+网页和 ROS 不同时控制 ESP32；旧标定不由导出的 JSON 覆盖。
+
+本次证据仅为源码与配置生成：未编译、未烧录、未运行 ROS/Gazebo、未验证实物动作。
+'''
+
     def generate(self, project_id, body):
         body = body if isinstance(body, GenerateInput) else GenerateInput.model_validate(body)
         with self.store.lock:
             project = self.get(project_id)
             if project['revision'] != body.revision:
                 raise HTTPException(409, '请求对应旧修订，请重新核对并生成。')
+            self._require_guided_ready(project)
             if project.get('workflow') is not None:
                 flow = FoldBotFlowConfig.model_validate(project['workflow'])
                 if not flow.wiring_reviewed:
@@ -449,6 +685,7 @@ AP 口令常量改为本地配置宏，同时隐藏串口口令输出。原始�
     def require_current_generation(self, project_id, revision=None):
         with self.store.lock:
             project = self.get(project_id)
+            self._require_guided_ready(project)
             generation = project.get('generation')
             if revision is not None and revision != project['revision']:
                 raise HTTPException(409, '工程版本已改变，控制配置已失效。')
@@ -510,6 +747,10 @@ def create_router(store, root, *, projects=None):
     @router.get('/template')
     def template():
         return service.template()
+
+    @router.post('/wiring/preview')
+    def wiring_preview(body: ProjectInput):
+        return service.wiring_preview(body)
 
     @router.get('/projects')
     def projects_list():

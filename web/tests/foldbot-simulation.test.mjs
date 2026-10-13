@@ -13,6 +13,8 @@ import {
   previewActionForGroup,
   visualPoseMessage,
   visualReadings,
+  previewFrameReadings,
+  previewWaveform,
   PREVIEW_SECONDS,
 } from "../src/foldbotSimulationModel.ts";
 
@@ -104,6 +106,72 @@ test("telemetry stays explicitly visual and never invents torque or physical spe
       visualReadings(pose, initialVisualPose(), seconds)[0].velocity,
       null,
     );
+});
+
+test("waveform samples match authored model angles and omit incompatible units", () => {
+  for (const action of ["unfold", "fold", "arm", "drive"]) {
+    const waveform = previewWaveform(action);
+    assert.equal(waveform.source, "visual_preview");
+    assert.equal(waveform.seconds, PREVIEW_SECONDS);
+    assert.deepEqual(waveform.referenceFrames, [0, 2, 4, 6, 8]);
+    assert.equal(
+      waveform.channels.length,
+      7,
+      "gripper % and track phase cannot be plotted as angles",
+    );
+    for (const [index, channel] of waveform.channels.entries()) {
+      assert.equal(channel.points.length, 129);
+      assert.equal(channel.points[0].time, 0);
+      assert.equal(channel.points.at(-1).time, PREVIEW_SECONDS);
+      for (const [frame, point] of channel.points.entries()) {
+        assert.equal(
+          point.angle,
+          visualReadings(actionVisualPose(action, frame / 128))[index].value,
+        );
+        assert.ok(Number.isFinite(point.velocity));
+        assert.equal(
+          point.torque,
+          null,
+          "unknown torque must not become a zero or a fabricated wave",
+        );
+      }
+    }
+  }
+});
+
+test("trajectory velocity remains valid while paused or scrubbing, with correct time units", () => {
+  const half = previewFrameReadings("unfold", 0.5);
+  assert.ok(
+    Math.abs(half[0].velocity - (-90 * 1.5) / PREVIEW_SECONDS) < 0.00001,
+  );
+  assert.ok(
+    Math.abs(half[1].velocity - (180 * 1.5) / PREVIEW_SECONDS) < 0.00001,
+  );
+  const arm = previewFrameReadings("arm", 0.5);
+  assert.ok(
+    Math.abs(arm[2].velocity - (-0.22 * 6 * Math.PI * 144) / PREVIEW_SECONDS) <
+      0.0001,
+  );
+  assert.deepEqual(previewFrameReadings("arm", 0.5), arm);
+  for (const edge of [0, 1]) {
+    for (const row of previewFrameReadings("fold", edge)) {
+      assert.ok(Number.isFinite(row.velocity));
+      assert.equal(row.torque, null);
+    }
+  }
+  const manual = visualReadings(initialVisualPose());
+  assert.ok(
+    manual.every((row) => row.velocity === null && row.torque === null),
+    "manual pose has no fabricated history",
+  );
+});
+
+test("waveforms reject invalid or unbounded sampling requests", () => {
+  for (const samples of [0, 1, 2.5, -10, 1026, NaN, Infinity])
+    assert.throws(() => previewWaveform("arm", samples));
+  assert.throws(() => previewWaveform("unknown"));
+  assert.throws(() => previewFrameReadings("arm", NaN));
+  assert.equal(previewWaveform("arm", 2).channels[0].points.length, 2);
 });
 
 test("standalone asset preserves exact audited FoldBot geometry and forbids network", () => {
