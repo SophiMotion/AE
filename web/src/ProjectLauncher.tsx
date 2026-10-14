@@ -10,6 +10,8 @@ import {
 } from "./foldbotApi";
 import { normalizeGuidedConfig } from "./guidedFlow";
 import { normalizeFoldBotDraftFlow } from "./foldbotFlow";
+import { validateProjectGraphs } from "./projectGraphs";
+import { graphLayoutKey, parseGraphDocument } from "./projectGraphDocument";
 import "./guidedJourney.css";
 
 export const guidedDraftPrefix = `ae.guided.draft.v1.${isPublicDemo ? "public" : "local"}.`;
@@ -28,6 +30,11 @@ export function readProjectCache(key: string): FoldBotCachedDraft | null {
     if (value?.draft) {
       normalizeGuidedConfig(value.draft.guided);
       normalizeFoldBotDraftFlow(value.draft.workflow);
+      if (
+        value.draft.graphs !== undefined &&
+        !validateProjectGraphs(value.draft.graphs)
+      )
+        return null;
       if (
         typeof value.draft.drive_level !== "number" ||
         typeof value.draft.drive_duration_ms !== "number"
@@ -72,6 +79,7 @@ export default function ProjectLauncher({
   const [projects, setProjects] = useState<FoldBotProject[]>([]);
   const [drafts] = useState(browserDrafts);
   const [error, setError] = useState("");
+  const [importError, setImportError] = useState("");
   useEffect(() => {
     let active = true;
     if (!isPublicDemo)
@@ -178,6 +186,55 @@ export default function ProjectLauncher({
             {label}
           </span>
         ))}
+      </div>
+      <div className="ae-launcher-import">
+        <label className="button secondary">
+          {t("导入画布工程 JSON", "Import canvas project JSON")}
+          <input
+            type="file"
+            accept=".json,application/json"
+            aria-label={t("导入画布工程 JSON", "Import canvas project JSON")}
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              setImportError("");
+              try {
+                if (file.size > 1024 * 1024)
+                  throw new Error("graph_document_too_large");
+                const imported = parseGraphDocument(await file.text());
+                const key = newKey();
+                localStorage.setItem(
+                  key,
+                  JSON.stringify({
+                    draft: imported.draft,
+                    projectId: null,
+                    baseRevision: null,
+                  }),
+                );
+                localStorage.setItem(
+                  graphLayoutKey(key),
+                  JSON.stringify(imported.editor_layout),
+                );
+                onOpen({ mode: "resume", cacheKey: key });
+              } catch {
+                setImportError(
+                  t(
+                    "无法导入：请使用 AE 导出的画布工程 JSON（不超过 1 MB）。现有工程没有改变。",
+                    "Could not import. Choose an AE canvas project JSON under 1 MB. Existing projects are unchanged.",
+                  ),
+                );
+              }
+            }}
+          />
+        </label>
+        <small>
+          {t(
+            "导入为新草稿，接线核对和部署状态会重新确认。",
+            "Imports as a new draft; wiring review and deployment must be confirmed again.",
+          )}
+        </small>
+        {importError && <p role="alert">{importError}</p>}
       </div>
       <details className="ae-launcher-history">
         <summary>

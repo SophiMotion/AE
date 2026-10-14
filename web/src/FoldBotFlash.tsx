@@ -53,6 +53,7 @@ export default function FoldBotFlash(props: FlashBinding) {
   const [buildName, setBuildName] = useState("");
   const [fqbn, setFqbn] = useState("");
   const [compiledAt, setCompiledAt] = useState("");
+  const [demoStep, setDemoStep] = useState(0);
   const busy = flashSessionBusy(snapshot.phase);
   let local = false;
   try {
@@ -450,6 +451,18 @@ export default function FoldBotFlash(props: FlashBinding) {
     ],
     failed: ["操作未完成", "Operation incomplete"],
   };
+  if (isPublicDemo) return (
+    <section className="foldbot-flash" aria-label={t("USB 烧录", "USB flashing")}>
+      <div className="ffl-heading"><h3>{t("体验模拟烧录", "Try simulated flashing")}</h3><span className="ffl-status">{t("演示 · 无设备访问", "Demo · no device access")}</span></div>
+      <p>{t("COM3 是示例接口。以下步骤仅演示烧录过程，不编译、不写入开发板，也不代表实物验证通过。", "COM3 is an example port. These steps only demonstrate flashing: no compilation, device write or hardware verification takes place.")}</p>
+      <ol>
+        {[t("选择示例串口 COM3", "Select example port COM3"), t("查看示例固件和分区", "Review example firmware and partitions"), t("模拟写入程序", "Simulate writing firmware"), t("模拟校验结束", "Finish simulated verification")].map((label, index) => <li key={index}>{index < demoStep ? "✓ " : "○ "}{label}</li>)}
+      </ol>
+      <progress aria-label={t("模拟烧录进度", "Simulated flashing progress")} value={demoStep} max={4} style={{width: "100%"}} />
+      <p role="status">{demoStep === 4 ? t("模拟流程已完成，可以继续查看离线控制台。未连接或烧录任何设备。", "Simulation complete. Continue to the offline console. No device was connected or flashed.") : t("点击按钮逐步体验，所有状态均为演示。", "Click to advance. All states are demonstrations.")}</p>
+      <button type="button" className="button primary" onClick={() => setDemoStep(step => step === 4 ? 0 : step + 1)}>{demoStep === 4 ? t("重新体验模拟烧录", "Restart simulated flashing") : t("下一步模拟烧录", "Next simulated flashing step")}</button>
+    </section>
+  );
   return (
     <section
       className="foldbot-flash"

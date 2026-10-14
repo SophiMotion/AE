@@ -1,4 +1,5 @@
 import { FOLDBOT_SOURCE_WIRING } from "./foldbotFlow.ts";
+import { normalizedWiringKey, validateGraphReadiness, validateProjectGraphs, type ProjectGraphs } from "./projectGraphs.ts";
 
 /** User intent and chosen source hardware. None of these fields proves physical compatibility. */
 export interface GuidedConfig {
@@ -16,7 +17,7 @@ export interface GuidedConfig {
   wiring_binding_sha256: string | null;
 }
 
-export interface GuidedDraftInput { request: string; guided?: GuidedConfig; }
+export interface GuidedDraftInput { request: string; guided?: GuidedConfig; graphs?: ProjectGraphs; }
 export interface GuidedWiringPreview {
   binding_sha256: string;
   input_key: string;
@@ -78,6 +79,7 @@ export function normalizeGuidedConfig(value?: unknown): GuidedConfig {
 
 export function guidedRequirementsReady(draft: GuidedDraftInput): boolean {
   return textField(draft.request, 12000) && !!draft.request.trim() &&
+    (draft.graphs === undefined || validateProjectGraphs(draft.graphs)) &&
     validateGuidedConfig(draft.guided) && draft.guided.robot_choice !== "undecided" &&
     !!draft.guided.purpose.trim() && draft.guided.primary_task !== "unselected";
 }
@@ -114,6 +116,7 @@ function wiringInputs(draft: GuidedDraftInput) {
     request: draft.request.trim(), robot_choice: guided.robot_choice,
     purpose: guided.purpose.trim(), primary_task: guided.primary_task,
     hardware: { ...guided.hardware, notes: guided.hardware.notes.trim() },
+    ...(draft.graphs === undefined ? {} : { wiring_graph: JSON.parse(normalizedWiringKey(draft.graphs.wiring)) }),
   };
 }
 
@@ -121,6 +124,7 @@ function wiringInputs(draft: GuidedDraftInput) {
 export async function buildGuidedWiringPreview(draft: GuidedDraftInput, source: GuidedWiringSource): Promise<GuidedWiringPreview> {
   if (!guidedRequirementsReady(draft)) throw new Error("guided_requirements_incomplete");
   if (!guidedHardwareReady(draft.guided)) throw new Error("guided_hardware_not_adapted");
+  if (draft.graphs && validateGraphReadiness(draft.graphs).some((issue) => issue.scope === "wiring")) throw new Error("wiring_graph_not_ready");
   if (source.id !== "foldbot-existing-firmware-v1" || !Array.isArray(source.source_provenance) ||
       source.source_provenance.length !== 2 ||
       !["espkuozhanban.ino", "web_ui.h"].every((path) => source.source_provenance.some((item) => item.path === path)) ||

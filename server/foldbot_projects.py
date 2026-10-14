@@ -10,9 +10,10 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, field_validator, model_validator
 
 from .store import now, uid
+from .foldbot_graphs import ProjectGraphs, normalized_wiring_value, readiness_issues
 
 PROJECT_KIND = 'foldbot_project'
 REVISION_KIND = 'foldbot_project_revision'
@@ -114,13 +115,20 @@ class ProjectInput(BaseModel):
     reviewed: StrictBool = False
     workflow: FoldBotFlowConfig | None = None
     guided: GuidedConfig | None = None
+    graphs: ProjectGraphs | None = None
 
-    @field_validator('workflow', 'guided', mode='before')
+    @field_validator('workflow', 'guided', 'graphs', mode='before')
     @classmethod
     def workflow_not_null(cls, value):
         if value is None:
             raise ValueError('流程配置不能为 null；旧客户端可以省略该字段。')
         return value
+
+    @model_validator(mode='after')
+    def graph_context(self):
+        if self.graphs is not None and (self.guided is None or self.workflow is None):
+            raise ValueError('工程图需要引导需求和流程配置，不能附加到旧版工程而省略其参数。')
+        return self
 
     @field_validator('name', 'request')
     @classmethod
@@ -155,6 +163,8 @@ def specification(project):
         value['workflow'] = deepcopy(project['workflow'])
     if project.get('guided') is not None:
         value['guided'] = deepcopy(project['guided'])
+    if project.get('graphs') is not None:
+        value['graphs'] = deepcopy(project['graphs'])
     return value
 
 
@@ -205,6 +215,10 @@ class FoldBotProjects:
                 guided.hardware.arm_bus != 'buslinker-hx' or
                 guided.hardware.chassis != 'sophicar-m1-m2'):
             raise HTTPException(409, 'guided_hardware_not_adapted')
+        if body.graphs is not None:
+            issues = [item for item in readiness_issues(body.graphs) if item['scope'] == 'wiring']
+            if issues:
+                raise HTTPException(409, {'code': 'wiring_graph_not_ready', 'issues': issues})
         provenance, _ = self._templates()
         hardware = guided.hardware.model_dump()
         hardware['notes'] = hardware['notes'].strip()
@@ -213,6 +227,8 @@ class FoldBotProjects:
             'purpose': guided.purpose.strip(), 'primary_task': guided.primary_task,
             'hardware': hardware,
         }
+        if body.graphs is not None:
+            inputs['wiring_graph'] = normalized_wiring_value(body.graphs.wiring)
         binding = {
             'schema_version': 1, 'source_key': TEMPLATE_ID, **inputs,
             'source_sha256': sorted([
@@ -253,16 +269,31 @@ class FoldBotProjects:
         }
 
     def _require_guided_ready(self, project):
+        if project.get('graphs') is not None:
+            try:
+                graphs = ProjectGraphs.model_validate(project['graphs'])
+            except ValidationError:
+                raise HTTPException(409, 'invalid_project_graphs') from None
+            if project.get('guided') is None or project.get('workflow') is None:
+                raise HTTPException(409, 'graphs_require_guided_workflow')
+            issues = readiness_issues(graphs)
+            if issues:
+                raise HTTPException(409, {'code': 'project_graph_not_ready', 'issues': issues})
         if project.get('guided') is None:
             return
         if project.get('workflow') is None:
             raise HTTPException(409, 'guided_control_not_selected')
-        preview = self.wiring_preview({key: project[key] for key in
-            ('name', 'request', 'drive_level', 'drive_duration_ms', 'guided', 'workflow')})
+        preview = self.wiring_preview(self._preview_input(project))
         if project['guided']['wiring_binding_sha256'] != preview['binding_sha256']:
             raise HTTPException(409, 'guided_wiring_binding_stale')
         if not project['workflow']['wiring_reviewed']:
             raise HTTPException(409, 'guided_wiring_review_required')
+
+    @staticmethod
+    def _preview_input(project):
+        return {key: project[key] for key in
+                ('name', 'request', 'drive_level', 'drive_duration_ms', 'guided', 'workflow', 'graphs')
+                if project.get(key) is not None}
 
     def list(self):
         return self.store.list(PROJECT_KIND)
@@ -407,10 +438,24 @@ class FoldBotProjects:
             control = project['workflow']['control']
             omitted_prefix = 'ros2/' if control == 'esp' else 'firmware/'
             files = {path: item for path, item in files.items() if not path.startswith(omitted_prefix)}
-            preview = self.wiring_preview({key: project[key] for key in
-                ('name', 'request', 'drive_level', 'drive_duration_ms', 'guided', 'workflow')})
+            preview = self.wiring_preview(self._preview_input(project))
             add('config/guided.json', 'json', '需求问答、用户选择的硬件及接线摘要；不代表物理兼容性验收。', json_text(project['guided']))
             add('config/wiring_preview.json', 'json', '与当前需求及硬件选择绑定的接线产物，含来源和未核对事项。', json_text(preview))
+        if project.get('graphs') is not None:
+            graphs = project['graphs']
+            add('config/wiring_graph.json', 'json', '用户编辑的元件端口连接；已匹配源码模板，未作实物验收。', json_text({
+                'schema_version': 1, 'kind': 'ae_source_wiring', 'graph': graphs['wiring'],
+                'wiring_binding_sha256': project['guided']['wiring_binding_sha256'],
+                'physical_verified': False,
+                'unrepresented': ['driver_motor_coils', 'motor_power_supply', 'servo_power_supply'],
+            }))
+            add('config/behavior_graph.json', 'json', 'AE 工程步骤、预览动作和条件；不是自动运动程序。', json_text({
+                'schema_version': 1, 'kind': 'ae_project_workflow', 'graph': graphs['behavior'],
+                'shared_parameter_sources': ['prd.json:request', 'config/guided.json', 'config/workflow.json'],
+                'condition_false': 'pause', 'action_ref': 'workflow.action_group',
+                'action_meaning': 'browser_visual_preview_only', 'automatic_motion': False,
+                'physical_verified': False,
+            }))
         manifest = {'schema_version': 1, 'project_id': project['id'], 'revision': project['revision'],
                     'template_id': TEMPLATE_ID, 'config_sha256': digest(canonical(config)),
                     'evidence': deepcopy(EVIDENCE),
@@ -591,6 +636,15 @@ calibrated travel and live firmwareBuild remain field checks. Do not infer them 
 
     def _guided_readme(self, project):
         flow = project['workflow']
+        graph_docs = '''
+## 工程图
+
+`config/wiring_graph.json` 保存元件与端口连接并绑定接线摘要；不包含未核对的驱动线圈和动力供电接线。
+`config/behavior_graph.json` 描述 AE 的需求、硬件、接线、预览、程序、部署和控制步骤。
+节点参数引用 `prd.json`、`config/guided.json` 与 `config/workflow.json`，不另存一套需求或动作值。
+条件不满足时暂停；动作节点仅引用浏览器视觉预览组，不生成或自动下发机器人动作。
+更改连接须重新生成接线并核对；更改流程须重新生成工程。节点布局保存在浏览器，不是硬件参数。
+''' if project.get('graphs') is not None else ''
         if flow['control'] == 'esp':
             target = '''## ESP32 工程
 
@@ -636,6 +690,7 @@ ROS 运行在主机上，不能经 COM 口当作 ESP 固件烧录。串口标签
 - `provenance.json`：模板来源和 SHA-256；`manifest.json`：文件名、类型、用途及校验。
 - `deployment.md`：所选路线的依赖、部署目标与操作边界。
 {target}
+{graph_docs}
 ## 核验要求
 
 接线产物绑定当前需求、期望结果、动作类别、硬件组合和模板源码摘要。

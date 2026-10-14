@@ -1,6 +1,8 @@
 /** FoldBot has its own project and control API. Public builds may read only the fixture. */
 import { normalizeFoldBotFlow, normalizeFoldBotDraftFlow, validateFoldBotFlow, type FoldBotFlowConfig } from "./foldbotFlow.ts";
 import { normalizeGuidedConfig, validateGuidedConfig, type GuidedConfig, type GuidedWiringPreview } from "./guidedFlow.ts";
+import { normalizeProjectGraphs, normalizedProjectGraphsKey, validateProjectGraphs, type ProjectGraphs } from "./projectGraphs.ts";
+export type { ProjectGraphs } from "./projectGraphs.ts";
 export type { FoldBotFlowConfig } from "./foldbotFlow.ts";
 export type { GuidedConfig, GuidedWiringPreview } from "./guidedFlow.ts";
 export interface FoldBotDraft {
@@ -10,6 +12,7 @@ export interface FoldBotDraft {
   drive_duration_ms: number;
   workflow?: FoldBotFlowConfig;
   guided?: GuidedConfig;
+  graphs?: ProjectGraphs;
 }
 export interface FoldBotFile {
   path: string;
@@ -396,6 +399,9 @@ export function draftMatchesProject(
     draft.request.trim() === project.request.trim() &&
     draft.drive_level === project.drive_level &&
     draft.drive_duration_ms === project.drive_duration_ms &&
+    ((draft.graphs === undefined && project.graphs === undefined) ||
+      (validateProjectGraphs(draft.graphs) && validateProjectGraphs(project.graphs) &&
+        normalizedProjectGraphsKey(draft.graphs) === normalizedProjectGraphsKey(project.graphs))) &&
     ((draft.guided === undefined && project.guided === undefined) ||
       (validateGuidedConfig(draft.guided) && validateGuidedConfig(project.guided) &&
         JSON.stringify(normalizeGuidedConfig(draft.guided)) === JSON.stringify(normalizeGuidedConfig(project.guided)))) &&
@@ -460,6 +466,7 @@ export function restoreFoldBotDraft(
     drive_duration_ms: source.drive_duration_ms,
     ...(source.workflow === undefined ? {} : { workflow: normalizeFoldBotDraftFlow(source.workflow) }),
     ...(source.guided === undefined ? {} : { guided: normalizeGuidedConfig(source.guided) }),
+    ...(source.graphs === undefined ? {} : { graphs: normalizeProjectGraphs(source.graphs) }),
   };
   const baseline: FoldBotDraftBaseline = cached
     ? {
@@ -493,6 +500,7 @@ export function validateFoldBotDraft(draft: FoldBotDraft) {
     draft.drive_duration_ms >= 1 &&
     draft.drive_duration_ms <= 2000 &&
     (draft.guided === undefined || validateGuidedConfig(draft.guided)) &&
+    (draft.graphs === undefined || (draft.guided !== undefined && draft.workflow !== undefined && validateProjectGraphs(draft.graphs))) &&
     (draft.workflow === undefined || validateFoldBotFlow(draft.workflow))
   );
 }

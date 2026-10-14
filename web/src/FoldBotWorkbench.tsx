@@ -59,6 +59,21 @@ import {
   type GuidedConfig,
 } from "./guidedFlow";
 import "./guidedJourney.css";
+import ProjectGraphWorkspace, {
+  type GraphWorkspaceView,
+} from "./ProjectGraphWorkspace";
+import {
+  defaultProjectGraphs,
+  normalizedWiringKey,
+  reconcileGraphsFromForm,
+  validateGraphReadiness,
+} from "./projectGraphs";
+import {
+  readEditorLayout,
+  graphLayoutKey,
+  exportGraphDocument,
+  type ProjectEditorLayout,
+} from "./projectGraphDocument";
 
 const defaults: FoldBotDraft = {
   name: "新机器人方案",
@@ -132,9 +147,48 @@ function GuidedProjectFlow({
   const [template, setTemplate] = useState<FoldBotTemplate | null>(null);
   const [reference, setReference] = useState<FoldBotReference | null>(null);
   const [stage, setStage] = useState(0);
+  const [graphView, setGraphView] = useState<GraphWorkspaceView>("process");
+  const [editorLayout, setEditorLayout] = useState<ProjectEditorLayout>(() =>
+    readEditorLayout(entry.sourceCacheKey ?? entry.cacheKey),
+  );
+  const [layoutError, setLayoutError] = useState(false);
+  const layoutStorageOrigin = useRef(entry.sourceCacheKey ?? entry.cacheKey);
+  const [graphNavigationMessage, setGraphNavigationMessage] = useState("");
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
+    setGraphView((previous) =>
+      previous === "form"
+        ? previous
+        : stage === 1 || stage === 2
+          ? "hardware"
+          : stage === 0
+            ? "process"
+            : "form",
+    );
+    setGraphNavigationMessage("");
   }, [stage]);
+  function changeLayout(next: ProjectEditorLayout) {
+    setEditorLayout(next);
+    try {
+      localStorage.setItem(graphLayoutKey(storageKey), JSON.stringify(next));
+      setLayoutError(false);
+    } catch {
+      setLayoutError(true);
+    }
+  }
+  useEffect(() => {
+    if (layoutStorageOrigin.current === storageKey) return;
+    try {
+      localStorage.setItem(
+        graphLayoutKey(storageKey),
+        JSON.stringify(editorLayout),
+      );
+      layoutStorageOrigin.current = storageKey;
+      setLayoutError(false);
+    } catch {
+      setLayoutError(true);
+    }
+  }, [storageKey, editorLayout]);
   const [wiringPreview, setWiringPreview] =
     useState<GuidedWiringPreview | null>(null);
   const [wiringBusy, setWiringBusy] = useState(false);
@@ -257,6 +311,33 @@ function GuidedProjectFlow({
     if (generationLock.current) return;
     const previous = draftRef.current;
     const next = { ...previous, ...patch };
+    if (
+      patch.guided &&
+      !patch.workflow &&
+      patch.guided.primary_task !== previous.guided?.primary_task &&
+      ["fold-cycle", "arm-demo", "chassis-demo"].includes(
+        patch.guided.primary_task,
+      )
+    )
+      next.workflow = {
+        ...(previous.workflow ?? defaultFoldBotFlow()),
+        action_group: patch.guided
+          .primary_task as FoldBotFlowConfig["action_group"],
+      };
+    const hardwareSelectionChanged =
+      patch.guided !== undefined &&
+      (patch.guided.robot_choice !== previous.guided?.robot_choice ||
+        ["controller", "fold_driver", "arm_bus", "chassis"].some(
+          (key) =>
+            patch.guided!.hardware[key as keyof GuidedConfig["hardware"]] !==
+            previous.guided?.hardware[key as keyof GuidedConfig["hardware"]],
+        ));
+    if (
+      patch.graphs === undefined &&
+      patch.guided !== undefined &&
+      (previous.graphs !== undefined || hardwareSelectionChanged)
+    )
+      next.graphs = reconcileGraphsFromForm(previous, next);
     const comparable = (g?: GuidedConfig) =>
       JSON.stringify({
         ...normalizeGuidedConfig(g),
@@ -265,7 +346,14 @@ function GuidedProjectFlow({
     const wiringChanged =
       (patch.request !== undefined && patch.request !== previous.request) ||
       (patch.guided !== undefined &&
-        comparable(patch.guided) !== comparable(previous.guided));
+        comparable(patch.guided) !== comparable(previous.guided)) ||
+      (previous.graphs === undefined) !== (next.graphs === undefined) ||
+      normalizedWiringKey(
+        (next.graphs ?? defaultProjectGraphs(next)).wiring,
+      ) !==
+        normalizedWiringKey(
+          (previous.graphs ?? defaultProjectGraphs(previous)).wiring,
+        );
     if (wiringChanged) {
       next.guided = {
         ...normalizeGuidedConfig(next.guided),
@@ -278,6 +366,7 @@ function GuidedProjectFlow({
       setWiringPreview(null);
       setPreviewSeen(false);
     }
+    if (patch.graphs !== undefined) setPreviewSeen(false);
     setDeploymentAcknowledged(false);
     setReferenceShown(false);
     editVersion.current++;
@@ -362,6 +451,9 @@ function GuidedProjectFlow({
       !draftRef.current.workflow?.wiring_reviewed ||
       !guidedWiringCurrent(draftRef.current, wiringPreview) ||
       !validateFoldBotDraft(draftRef.current) ||
+      validateGraphReadiness(
+        draftRef.current.graphs ?? defaultProjectGraphs(draftRef.current),
+      ).length > 0 ||
       conflictRef.current
     )
       return;
@@ -479,10 +571,21 @@ function GuidedProjectFlow({
   const changeFlow = (patch: Partial<FoldBotFlowConfig>) =>
     updateDraft({ workflow: { ...flow, ...patch } });
   const guided = normalizeGuidedConfig(draft.guided);
+  const graphIssues = validateGraphReadiness(
+    draft.graphs ?? defaultProjectGraphs(draft),
+  );
+  const wiringGraphReady = !graphIssues.some(
+    (issue) => issue.scope === "wiring",
+  );
+  const processGraphReady = !graphIssues.some(
+    (issue) => issue.scope === "behavior",
+  );
   const requirementsReady = valid && guidedRequirementsReady(draft);
   const hardwareReady = requirementsReady && guidedHardwareReady(guided);
   const wiringReady =
     hardwareReady &&
+    wiringGraphReady &&
+    processGraphReady &&
     flow.wiring_reviewed &&
     guidedWiringCurrent(draft, wiringPreview);
   const codeReady =
@@ -498,8 +601,8 @@ function GuidedProjectFlow({
   ];
   const canVisit = [
     true,
-    requirementsReady,
-    hardwareReady,
+    requirementsReady && processGraphReady,
+    hardwareReady && processGraphReady,
     wiringReady,
     wiringReady && (previewSeen || current),
     codeReady,
@@ -526,7 +629,14 @@ function GuidedProjectFlow({
     };
   }, [template, draft.guided?.wiring_binding_sha256, draft.request]);
   async function generateWiring() {
-    if (!hardwareReady || blocked || !template) return;
+    if (
+      !hardwareReady ||
+      !wiringGraphReady ||
+      !processGraphReady ||
+      blocked ||
+      !template
+    )
+      return;
     const snapshot = draftRef.current;
     const version = editVersion.current;
     setWiringBusy(true);
@@ -729,15 +839,77 @@ function GuidedProjectFlow({
               </pre>
             </details>
           </section>
-          <RequirementSteps
-            request={draft.request}
-            value={guided}
-            onChange={changeGuided}
-            disabled={blocked}
-          />
+          {graphView === "form" && (
+            <RequirementSteps
+              request={draft.request}
+              value={guided}
+              onChange={changeGuided}
+              disabled={blocked}
+            />
+          )}
         </>
       )}
-      {stage === 1 && (
+      <ProjectGraphWorkspace
+        draft={draft}
+        layout={editorLayout}
+        view={graphView}
+        disabled={blocked}
+        onViewChange={setGraphView}
+        onDraftPatch={updateDraft}
+        onGraphsChange={(graphs) => updateDraft({ graphs })}
+        onLayoutChange={changeLayout}
+        onOpenStage={(index) => {
+          if (!blocked && canVisit[index]) {
+            setStage(index);
+            setGraphNavigationMessage("");
+          } else
+            setGraphNavigationMessage(
+              t(
+                "请先补齐前面的需求、连接和核对。可以继续在画布里修改参数。",
+                "Complete the earlier requirements, connections and reviews first. You can keep editing node parameters here.",
+              ),
+            );
+        }}
+        onExport={() =>
+          downloadText(
+            "ae-canvas-project.json",
+            JSON.stringify(
+              exportGraphDocument(draftRef.current, editorLayout),
+              null,
+              2,
+            ),
+          )
+        }
+      />
+      {layoutError && (
+        <p className="foldbot-notice warning" role="status">
+          {t(
+            "布局暂存失败，请导出工程 JSON 保留画布位置。",
+            "Layout storage failed. Export the project JSON to keep node positions.",
+          )}
+        </p>
+      )}
+      {graphNavigationMessage && (
+        <p className="foldbot-notice warning" role="status">
+          {graphNavigationMessage}
+        </p>
+      )}
+      {graphIssues.length > 0 && (draft.graphs || stage > 0) && (
+        <details className="foldbot-notice warning graph-pending-issues">
+          <summary>
+            {t(
+              `画布还有 ${graphIssues.length} 项待补齐，可继续编辑并自动保存`,
+              `${graphIssues.length} canvas items remain; continue editing and autosaving`,
+            )}
+          </summary>
+          <ul>
+            {graphIssues.map((issue, index) => (
+              <li key={index}>{t(issue.message, issue.messageEn)}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {stage === 1 && graphView === "form" && (
         <HardwareSelector
           value={guided}
           onChange={changeGuided}
@@ -756,7 +928,12 @@ function GuidedProjectFlow({
             </p>
             <button
               className="button primary"
-              disabled={blocked || !hardwareReady}
+              disabled={
+                blocked ||
+                !hardwareReady ||
+                !wiringGraphReady ||
+                !processGraphReady
+              }
               onClick={() => void generateWiring()}
             >
               {wiringBusy

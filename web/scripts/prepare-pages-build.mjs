@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const build = resolve(root, "dist/pages");
 const docs = resolve(root, "../docs");
-for (const name of ["index.html", "public-demo.json", "structure.json", "model.bin", "foldbot-example.json", "foldbot-example.zip", "foldbot-console-preview.html", "foldbot-console-provenance.json", "foldbot-model-preview.html", "esptool-js-LICENSE.txt", "CodeCraft-code-editor-LICENSE.txt", "CodeCraft-code-editor-NOTICE.txt"]) {
+for (const name of ["index.html", "public-demo.json", "structure.json", "model.bin", "foldbot-example.json", "foldbot-example.zip", "foldbot-console-preview.html", "foldbot-console-provenance.json", "foldbot-model-preview.html", "esptool-js-LICENSE.txt", "CodeCraft-code-editor-LICENSE.txt", "CodeCraft-code-editor-NOTICE.txt", "Graph-editor-NOTICE.txt", "Wokwi-elements-LICENSE.txt", "Wokwi-elements-NOTICE.txt"]) {
   if (!existsSync(resolve(build, name))) throw new Error(`缺少分享版资源：${name}`);
 }
 // Only publish this static build. Keep guide.html and the original public evidence files.

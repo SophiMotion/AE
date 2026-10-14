@@ -1,0 +1,21 @@
+AE hardware canvas uses selected visual elements from @wokwi/elements 1.9.2.
+
+Upstream: https://github.com/wokwi/wokwi-elements
+Published package source (npm gitHead): 3c8178e6eccd94f89a197182954a4bf9d3e6a76b
+Additional reviewed repository revision: 72d8b5b1f472121987d8c74b60a0e7a5d756c54c
+Copyright (c) 2020 Uri Shaked
+License: MIT. Full text: Wokwi-elements-LICENSE.txt in this directory.
+Registry: https://registry.npmjs.org/@wokwi%2felements/1.9.2
+Package integrity: sha512-bommouWNrBl6bQqxi8ZT/Keh1MbGpL7bl2pVf4DxbrngXw3G7iejt5XA2990q9i5tidGoxMYJxoP11Ai6xuQdg==
+
+Selected upstream file: src/stepper-motor-element.ts (compiled ESM module).
+AE imports the original visual custom element and wraps it in a React Flow
+hardware node. AE supplies its own catalog, draft state, labels, ports and wiring
+validation. The upstream package is not a circuit simulator or a robot driver.
+
+The generic motor drawing is illustrative. It does not establish physical wire
+order, dimensions, ratings, board compatibility or successful hardware tests.
+The Sophicar board, STEP/DIR driver and BusLinker/HX nodes use AE's separately
+defined catalog; no generic ESP32 or PWM-servo pinout replaces those devices.
+
+This notice does not change the license of AE or of other dependencies.

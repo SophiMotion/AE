@@ -15,6 +15,12 @@ GitHub Pages 从仓库 `main` 分支的 `docs` 目录发布，内容以最近一
 
 ## 从需求到控制的七步流程
 
+### 发给微信好友体验
+
+分享 https://sophimotion.github.io/AE/#foldbot 即可，无需启动你的电脑。好友填写“制作一个折叠机器人”，按七步引导体验需求、双画布接线、动作预览、参考源码、四步模拟烧录和离线控制台。手机也可通过元件旁的加号及端口下拉框完成接线；若微信内置浏览器加载不完整，可从右上角菜单选择在浏览器打开。
+
+模拟烧录不会访问 USB；离线控制台只展示界面和 3D 模型，运动按钮不可用。草稿保存在各自浏览器内，不会同步给其他访客。当前未完成微信真机浏览器验收。
+
 | 步骤 | 用户操作 | 当前结果 |
 | --- | --- | --- |
 | 1. 说明需求 | 用文字或语音描述，再逐题确认机器人类型、主要动作、期望结果 | 保留用户原文，提示词默认收起 |
@@ -27,7 +33,22 @@ GitHub Pages 从仓库 `main` 分支的 `docs` 目录发布，内容以最近一
 
 需求、硬件、接线核对和动作组选择随草稿自动保存。刷新后回到通用入口，已有工程和每份浏览器草稿均可显式继续；旧版工程进入新引导时创建副本，保留旧工程和生成记录。修改需求或硬件会使旧接线和代码失效。保存、生成、编译、写入和实物验收分别记录。
 
+### 同一个工程的两张画布
+
+描述需求后，可以在 **流程画布 / 硬件画布 / 表单引导** 之间切换。三种界面使用同一份需求、硬件选择和程序配置，修改后自动保存草稿。
+
+- **流程画布**：初始提供需求、硬件、接线、预览、程序、部署和控制七个阶段。拖入动作或条件节点、拖动端口连线，点击节点修改参数；也可用列表和下拉框连接节点。动作节点引用现有预览动作组，条件用于检查需求是否完整、接线是否核对。缺少步骤、非法顺序或不支持的分支会显示问题并阻止生成。
+- **硬件画布**：把板卡、折叠驱动、机械臂总线和底盘电机拖入画布，连接端口，或通过下拉框完成接线。可载入现有整机的 6 个元件、17 条源码信号连接，再逐项核对。未知硬件可以记录，尚未适配时不能生成可执行接线方案。
+- **恢复与交换**：支持删除、撤销、重做、自动保存以及工程 JSON 导入导出。刷新后从工程入口继续草稿；导入创建新草稿，并清除旧项目关联、审核与生成状态。
+- **版本一致性**：仅移动元件位置不会使接线核对或生成版本失效；修改端口连线、需求或相关参数会要求重新核对和生成。坐标单独保存，图的内容随工程修订保存。
+
+两张画布编辑的是工程方案，不直接发送机器人运动指令。流程图当前支持 AE 的顺序开发流程，不是任意控制逻辑或分支程序编译器。真实设备操作仍由最后的部署与控制步骤显式发起；公开分享版只编辑草稿、预览和查看参考源码。
+
 ### 开源代码复用
+
+两张画布实际使用 MIT 许可的 [React Flow 12.12.0](https://github.com/xyflow/xyflow) 实现节点拖动、端口连接、缩放和选择。折叠驱动节点中的通用步进电机图形使用 MIT 许可的 [Wokwi Elements 1.9.2](https://github.com/wokwi/wokwi-elements)，不将该图形当作真实电机型号、Sophicar 板图或电路仿真器。来源与许可证随 `Graph-editor-NOTICE.txt`、`Wokwi-elements-LICENSE.txt` 和 `Wokwi-elements-NOTICE.txt` 一起发布。
+
+Tinkercad、Dify、n8n、ComfyUI 的交互作为参考；本次没有复制它们的整套产品源码，也未接入它们的工作流执行服务。AE 的工程结构、硬件适配、校验和表单同步由本项目实现。
 
 程序预览局部移植 [Seeed CodeCraft 的只读代码编辑器](https://github.com/Seeed-Studio/CodeCraft/blob/d236f3c59d33639e0006a80f2dac931ee05956fd/gui/src/lib/code-editor/code-editor.js)，保留模型创建、内容更新与语言切换结构，适配为独立 React 组件。使用固定版本 Monaco 0.57.0，提供代码高亮、行号与文件内查找；编辑器和 Worker 随网站打包，不依赖 CDN。BSD-3-Clause 许可证及变更说明保存在 `web/public/CodeCraft-code-editor-LICENSE.txt`、`web/public/CodeCraft-code-editor-NOTICE.txt`，并随 `docs` 发布。
 
@@ -54,6 +75,8 @@ config/
   foldbot_config.json         工程与本机控制约束
   workflow.json               ESP/ROS、主机、版本、串口与动作组选择
   guided.json                 需求问答、硬件组合与接线绑定
+  wiring_graph.json           使用硬件画布时保存的元件、端口和连线
+  behavior_graph.json         使用流程画布时保存的阶段、动作和条件连接
   wiring.json                 源码接线及未确认事项
   action_preview.json         仅供视觉预览的配置
 ros2/foldbot_demo/
@@ -151,6 +174,8 @@ python -m pytest tests/test_foldbot_projects.py tests/test_foldbot_flow.py tests
 npm --prefix web run test:foldbot
 npm --prefix web run test:flash
 node --test web/tests/foldbot-flow.test.mjs web/tests/foldbot-simulation.test.mjs
+python -m pytest tests/test_foldbot_graphs.py -q
+node --test web/tests/project-graphs.test.mjs web/tests/project-graph-document.test.mjs
 npm --prefix web run typecheck
 ```
 
