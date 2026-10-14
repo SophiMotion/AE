@@ -1,5 +1,14 @@
+import { t } from "./localeStore";
+import { useI18n } from "./i18n";
+import {
+  displayBrowserRuleText,
+  displayRequirementIssue,
+  displayRequirementIssueLabel,
+  displayRequirementMessage,
+} from "./i18nRequirements";
 import GuideNumber from "./GuideNumber";
 import GuideOptions from "./GuideOptions";
+import RequestInput from "./RequestInput";
 import { blankNumberRecommendations, numberChoices } from "./intakeChoices";
 import {
   issueDestination,
@@ -66,23 +75,45 @@ import {
 } from "./intakeGuide";
 
 type Props = ComponentProps<typeof LegacyRequirements>;
+// Only format presentation-only placeholders and numeric units. Text supplied
+// by the user or AI is returned unchanged, including action names and details.
+function displayAssistValue(
+  path: string,
+  value: unknown,
+  angleUnit: "deg" | "rad",
+) {
+  if (value === null || value === undefined) return t("空白", "Blank");
+  if (typeof value === "object")
+    return t("完整内容（展开查看）", "Full content (expand to view)");
+  if (typeof value !== "number") return String(value);
+  if (!Number.isFinite(value)) return t("无效数值", "Invalid number");
+  const original = formatAssistValue(path, value, angleUnit);
+  return t(original, original.replace(/秒/g, "s").replace(/次/g, "cycles"));
+}
+const guideScrollBehavior = (): ScrollBehavior =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
 export default function Requirements(props: Props) {
+  useI18n();
   if (!props.draft.prd.intake)
     return (
       <>
         <div className="notice legacy-guide-notice">
           <Info size={22} />
           <div>
-            <strong>这是一份已有工程</strong>
+            <strong>{t("这是一份已有工程")}</strong>
             <p>
-              仍按原表单查看和修改。切换到新引导会保留原话与现有参数，之后需要重新拆分、核对。
+              {t(
+                "仍按原表单查看和修改。切换到新引导会保留原话与现有参数，之后需要重新拆分、核对。",
+              )}
             </p>
             <button
               className="button secondary"
               disabled={props.locked || props.saving}
               onClick={() => props.setDraft(migrateLegacyIntake(props.draft))}
             >
-              按新表单整理
+              {t("按新表单整理")}
             </button>
           </div>
         </div>
@@ -102,7 +133,10 @@ function IntakeGuide({
   onPlan,
   manifest,
   manifestStale,
+  speechOverflow,
+  onSpeechOverflowChange,
 }: Props) {
+  const { locale } = useI18n();
   const intake = draft.prd.intake!;
   const answers = intake.answers;
   const [step, setStep] = useState(0);
@@ -233,12 +267,21 @@ function IntakeGuide({
   const sourceFor = (path: string) =>
     assistSource(draft, path, structure) ||
     recommendationSource(draft, path, structure);
+  const sourceReason = (source: ReturnType<typeof sourceFor>) =>
+    source
+      ? displayBrowserRuleText(
+          source.record.reason,
+          "provenance" in source ? source.provenance : null,
+        )
+      : "";
+  const currentRuleText = (text: string) =>
+    displayBrowserRuleText(text, recommendationResult?.response.provenance);
   const motionSource = assistSource(draft, "prd.intake.motion_plan", structure);
   const sourceNote = (path: string) => {
     const source = sourceFor(path);
     return source ? (
       <small className="recommendation-field-source">
-        <strong>{source.label}</strong> · {source.record.reason}
+        <strong>{t(source.label)}</strong> · {sourceReason(source)}
       </small>
     ) : null;
   };
@@ -281,7 +324,10 @@ function IntakeGuide({
     setStep(next);
     requestAnimationFrame(() => {
       titleRef.current?.focus({ preventScroll: true });
-      titleRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+      titleRef.current?.scrollIntoView({
+        block: "start",
+        behavior: guideScrollBehavior(),
+      });
     });
   };
   const goIssue = (issue: IntakeIssue) => {
@@ -296,13 +342,16 @@ function IntakeGuide({
       if (!container) return;
       const { path } = issueDestination(issueFocus.issue);
       const labels: Record<string, string[]> = {
-        "prd.intake.answers.structure_id": ["结构模型"],
-        "prd.intake.answers.joint_name": ["参考预览关节", "本轮控制的关节"],
-        request: ["你希望机器人做什么"],
-        name: ["工程名称"],
-        "prd.acceptance": ["怎样才算完成"],
-        "prd.constraints": ["必须遵守的限制"],
-        "prd.intake.answers.board": ["目标控制板"],
+        "prd.intake.answers.structure_id": [t("结构模型")],
+        "prd.intake.answers.joint_name": [
+          t("参考预览关节"),
+          t("本轮控制的关节"),
+        ],
+        request: [t("你希望机器人做什么")],
+        name: [t("工程名称")],
+        "prd.acceptance": [t("怎样才算完成")],
+        "prd.constraints": [t("必须遵守的限制")],
+        "prd.intake.answers.board": [t("目标控制板")],
       };
       const input = [
         ...container.querySelectorAll<HTMLElement>("[aria-label]"),
@@ -327,7 +376,7 @@ function IntakeGuide({
       if (!highlight) {
         titleRef.current?.scrollIntoView({
           block: "start",
-          behavior: "smooth",
+          behavior: guideScrollBehavior(),
         });
         return;
       }
@@ -344,14 +393,17 @@ function IntakeGuide({
           ) ||
           highlight.querySelector<HTMLElement>("button:not(:disabled)") ||
           highlight;
-      focus.scrollIntoView({ block: "center", behavior: "smooth" });
+      focus.scrollIntoView({
+        block: "center",
+        behavior: guideScrollBehavior(),
+      });
       focus.focus({ preventScroll: true });
     });
     return () => {
       cancelAnimationFrame(frame);
       highlight?.classList.remove("issue-focus-target");
     };
-  }, [issueFocus, step]);
+  }, [issueFocus, step, locale]);
   const updateIntake = (value: Partial<PRDIntake>) => {
     let next: typeof draft = {
       ...draft,
@@ -455,9 +507,9 @@ function IntakeGuide({
                   ? "°/s"
                   : "rad/s"
                 : unit === "seconds"
-                  ? "秒"
+                  ? t("秒")
                   : unit === "count"
-                    ? "次"
+                    ? t("次", "times")
                     : "0–1"
           }
           disabled={locked}
@@ -469,16 +521,18 @@ function IntakeGuide({
               "wave_end_rad",
               "end_position_rad",
             ].includes(field)
-              ? "这个角度取决于所选关节和姿势，没有通用推荐值。先看模型；不清楚就留待确认。"
+              ? t(
+                  "这个角度取决于所选关节和姿势，没有通用推荐值。先看模型；不清楚就留待确认。",
+                )
               : field === "duration_s"
-                ? "这是观察时长，不保证所有动作会在这段时间内做完。"
+                ? t("这是观察时长，不保证所有动作会在这段时间内做完。")
                 : undefined)
           }
           choices={numberChoices(field, completeAction)}
           suggested={intake.accepted_suggestions.includes(`answers.${field}`)}
           source={
             source
-              ? { label: source.label, reason: source.record.reason }
+              ? { label: source.label, reason: sourceReason(source) }
               : null
           }
           onChange={(value) => updateAnswer(field, value)}
@@ -490,25 +544,29 @@ function IntakeGuide({
     <section
       ref={formRef}
       className="panel requirement-panel intake-guide"
-      aria-label="需求引导表单"
+      aria-label={t("需求引导表单")}
     >
       <header className="panel-heading">
         <SlidersHorizontal size={24} />
         <div>
-          <h2>把需求说明白，再生成程序</h2>
+          <h2>{t("把需求说明白，再生成程序")}</h2>
           <p>
-            先选看得懂的选项；不知道的留空。保存不会调用 AI，也不会启动机器人。
+            {t(
+              "先选看得懂的选项；不知道的留空。保存不会调用 AI，也不会启动机器人。",
+            )}
           </p>
         </div>
-        <span className="scope-badge">需求准备</span>
+        <span className="scope-badge">{t("需求准备")}</span>
       </header>
       {intake.schema_version === 1 && (
         <div className="notice legacy-guide-notice">
           <Info size={20} />
           <div>
-            <strong>这份需求仍使用原来的五步表单</strong>
+            <strong>{t("这份需求仍使用原来的五步表单")}</strong>
             <p>
-              可以继续查看和保存。需要补充动作顺序、设备对应、异常和环境时，再明确升级；原话和已有答案会保留，新问题先留空。
+              {t(
+                "可以继续查看和保存。需要补充动作顺序、设备对应、异常和环境时，再明确升级；原话和已有答案会保留，新问题先留空。",
+              )}
             </p>
             <button
               type="button"
@@ -516,12 +574,12 @@ function IntakeGuide({
               disabled={locked}
               onClick={() => updateIntake(upgradeIntake(intake))}
             >
-              补全详细需求
+              {t("补全详细需求")}
             </button>
           </div>
         </div>
       )}
-      <nav className="guide-steps" aria-label="填写步骤">
+      <nav className="guide-steps" aria-label={t("填写步骤")}>
         {guideSteps.map((label, index) => {
           const count = issues.filter(
             (issue) => issueDestination(issue).step === index,
@@ -536,18 +594,25 @@ function IntakeGuide({
               onClick={() => goStep(index)}
             >
               <span>{String(index + 1).padStart(2, "0")}</span>
-              <strong>{label}</strong>
-              {readiness && count > 0 ? <small>{count} 项待补</small> : null}
+              <strong>{t(label)}</strong>
+              {readiness && count > 0 ? (
+                <small>
+                  {count}
+                  {t("项待补")}
+                </small>
+              ) : null}
             </button>
           );
         })}
       </nav>
-      <aside className="recommendation-panel" aria-label="按需求智能填写">
+      <aside className="recommendation-panel" aria-label={t("按需求智能填写")}>
         <div className="recommendation-heading">
           <div>
-            <strong>说出需求，帮你整理能确定的内容</strong>
+            <strong>{t("说出需求，帮你整理能确定的内容")}</strong>
             <p>
-              可推荐参考模型、相关关节、动作步骤和测试参数。已有内容保留，冲突由你决定。
+              {t(
+                "可推荐参考模型、相关关节、动作步骤和测试参数。已有内容保留，冲突由你决定。",
+              )}
             </p>
           </div>
           <div className="recommendation-actions">
@@ -560,7 +625,11 @@ function IntakeGuide({
               onClick={recommend}
             >
               {recommending && <CircleNotch size={17} className="spin" />}
-              {recommending ? "正在整理需求…" : isPublicDemo ? "按需求填写参考建议" : "按需求智能填写"}
+              {recommending
+                ? t("正在整理需求…")
+                : isPublicDemo
+                  ? t("按需求填写参考建议")
+                  : t("按需求智能填写")}
             </button>
             {recommending && (
               <button
@@ -568,59 +637,70 @@ function IntakeGuide({
                 className="button secondary"
                 onClick={cancelRecommendation}
               >
-                取消本次推荐
+                {t("取消本次推荐")}
               </button>
             )}
           </div>
         </div>
         <small>
           {intake.schema_version !== 2
-            ? "请先点击上方“补全详细需求”。"
+            ? t("请先点击上方“补全详细需求”。")
             : !draft.request.trim()
-              ? "先在第 1 步用自己的话写出需求。"
-              : isPublicDemo ? "使用浏览器内的参考规则整理草稿，不调用 AI。仅推荐可识别的任务；已有内容保留，未知硬件不猜。" : "调用当前配置的 AI，可能需要一点时间。建议填入草稿后可以改；未知实物接线和姿势角度不会猜。"}
+              ? t("先在第 1 步用自己的话写出需求。")
+              : isPublicDemo
+                ? t(
+                    "使用浏览器内的参考规则整理草稿，不调用 AI。仅推荐可识别的任务；已有内容保留，未知硬件不猜。",
+                  )
+                : t(
+                    "调用当前配置的 AI，可能需要一点时间。建议填入草稿后可以改；未知实物接线和姿势角度不会猜。",
+                  )}
         </small>
         {recommending && (
           <p role="status">
-            正在结合需求和模型目录整理内容。期间不会保存、编译或运行程序。
+            {t(
+              "正在结合需求和模型目录整理内容。期间不会保存、编译或运行程序。",
+            )}
           </p>
         )}
         {recommendationError && (
           <p className="recommendation-error" role="alert">
-            {recommendationError}
+            {t(recommendationError)}
           </p>
         )}
         {recommendationResult && (
           <div className="recommendation-result" aria-live="polite">
             <strong>
               {recommendationResult.count
-                ? `本次已补 ${recommendationResult.count} 项`
-                : "本次没有可直接补入的空白，请查看下面的说明"}
+                ? t(
+                    `本次已补 ${recommendationResult.count} 项`,
+                    `${recommendationResult.count} fields filled`,
+                  )
+                : t("本次没有可直接补入的空白，请查看下面的说明")}
             </strong>
-            <p>{recommendationResult.response.notice}</p>
+            <p>{currentRuleText(recommendationResult.response.notice)}</p>
             {recommendationResult.response.warnings.map((warning, index) => (
               <p className="assistant-warning" key={index}>
-                {warning}
+                {currentRuleText(warning)}
               </p>
             ))}
             {!!recommendationResult.response.conflicts.length && (
               <div className="assistant-conflicts">
-                <strong>这些建议与已填内容不同，先由你确认</strong>
+                <strong>{t("这些建议与已填内容不同，先由你确认")}</strong>
                 {recommendationResult.response.conflicts.map(
                   (record, index) => (
                     <article key={`${record.path}-${index}`}>
                       <div>
-                        <strong>{record.label}</strong>
-                        <p>{record.reason}</p>
+                        <strong>{t(record.label)}</strong>
+                        <p>{currentRuleText(record.reason)}</p>
                         <small>
-                          目前：
-                          {formatAssistValue(
+                          {t("目前：")}
+                          {displayAssistValue(
                             record.path,
                             record.current_value,
                             angleUnit,
                           )}{" "}
-                          → 建议：
-                          {formatAssistValue(
+                          {t("→ 建议：")}
+                          {displayAssistValue(
                             record.path,
                             record.value,
                             angleUnit,
@@ -628,7 +708,7 @@ function IntakeGuide({
                         </small>
                         {record.path === "prd.intake.action_draft" && (
                           <details>
-                            <summary>采用前查看建议的完整动作</summary>
+                            <summary>{t("采用前查看建议的完整动作")}</summary>
                             <ActionDraftEditor
                               action={record.value as ActionDraft}
                               structure={structure}
@@ -648,25 +728,26 @@ function IntakeGuide({
                         }
                         onClick={() => adoptConflict(record)}
                       >
-                        采用此建议：{record.label}
+                        {t("采用此建议：")}
+                        {t(record.label)}
                       </button>
                     </article>
                   ),
                 )}
                 {recommendationResult.key !== JSON.stringify(draft) && (
-                  <p>草稿已修改，请重新推荐后再采用纠正建议。</p>
+                  <p>{t("草稿已修改，请重新推荐后再采用纠正建议。")}</p>
                 )}
               </div>
             )}
             {!!recommendationResult.response.not_filled.length && (
               <div className="assistant-missing">
-                <strong>还需要你确认</strong>
+                <strong>{t("还需要你确认")}</strong>
                 <ul>
                   {recommendationResult.response.not_filled.map(
                     (item, index) => (
                       <li key={`${item.path}-${index}`}>
-                        <strong>{item.label}：</strong>
-                        {item.reason}{" "}
+                        <strong>{t(item.label)}：</strong>
+                        {currentRuleText(item.reason)}{" "}
                         <button
                           type="button"
                           className="text-button"
@@ -675,7 +756,7 @@ function IntakeGuide({
                             goIssue({ ...item, message: item.reason })
                           }
                         >
-                          去查看
+                          {t("去查看")}
                         </button>
                       </li>
                     ),
@@ -684,10 +765,15 @@ function IntakeGuide({
               </div>
             )}
             <details className="assistant-provenance">
-              <summary>这次用的工具、模型和提示词</summary>
+              <summary>{t("这次用的工具、模型和提示词")}</summary>
               <p>
-                工具：{recommendationResult.response.provenance.tool} · 模型：
-                {recommendationResult.response.provenance.model} · 状态：
+                {t("工具：")}
+                {currentRuleText(recommendationResult.response.provenance.tool)}
+                {t("· 模型：")}
+                {currentRuleText(
+                  recommendationResult.response.provenance.model,
+                )}
+                {t("· 状态：")}
                 {recommendationResult.response.provenance.status}
               </p>
               <pre>{recommendationResult.response.provenance.prompt}</pre>
@@ -697,8 +783,8 @@ function IntakeGuide({
         {!!intake.recommendation_bundle && (
           <details className="recommendation-records">
             <summary>
-              已采用的智能建议 · {intake.recommendation_bundle.records.length}{" "}
-              项
+              {t("已采用的智能建议 ·")}
+              {intake.recommendation_bundle.records.length} {t("项")}
             </summary>
             <ul>
               {intake.recommendation_bundle.records.map((record) => {
@@ -706,20 +792,30 @@ function IntakeGuide({
                 return source ? (
                   <li key={record.path}>
                     <strong>
-                      {record.label} · {source.label}
+                      {t(record.label)} · {t(source.label)}
                     </strong>
-                    <p>{record.reason}</p>
+                    <p>{sourceReason(source)}</p>
                     {"provenance" in source && source.provenance ? (
                       <details>
-                        <summary>这项建议的工具与提示词</summary>
+                        <summary>{t("这项建议的工具与提示词")}</summary>
                         <p>
-                          {source.provenance.tool} · {source.provenance.model}
+                          {displayBrowserRuleText(
+                            source.provenance.tool,
+                            source.provenance,
+                          )}{" "}
+                          ·{" "}
+                          {displayBrowserRuleText(
+                            source.provenance.model,
+                            source.provenance,
+                          )}
                         </p>
                         <pre>{source.provenance.prompt}</pre>
                       </details>
                     ) : (
                       <small>
-                        这条历史建议没有对应的调用记录，不归到最近一次提示词。
+                        {t(
+                          "这条历史建议没有对应的调用记录，不归到最近一次提示词。",
+                        )}
                       </small>
                     )}
                     <button
@@ -730,19 +826,26 @@ function IntakeGuide({
                         goStep(Math.max(0, Math.min(4, record.section - 1)))
                       }
                     >
-                      查看 / 修改
+                      {t("查看 / 修改")}
                     </button>
                   </li>
                 ) : null;
               })}
             </ul>
             <p>
-              最近一次采用建议的工具：
-              {intake.recommendation_bundle.provenance.tool} · 模型：
-              {intake.recommendation_bundle.provenance.model}
+              {t("最近一次采用建议的工具：")}
+              {displayBrowserRuleText(
+                intake.recommendation_bundle.provenance.tool,
+                intake.recommendation_bundle.provenance,
+              )}
+              {t("· 模型：")}
+              {displayBrowserRuleText(
+                intake.recommendation_bundle.provenance.model,
+                intake.recommendation_bundle.provenance,
+              )}
             </p>
             <details>
-              <summary>查看最近一次采用建议的提示词</summary>
+              <summary>{t("查看最近一次采用建议的提示词")}</summary>
               <pre>{intake.recommendation_bundle.provenance.prompt}</pre>
             </details>
           </details>
@@ -750,7 +853,9 @@ function IntakeGuide({
         {!!intake.recommendation_records?.length && (
           <details className="recommendation-records">
             <summary>
-              以前采用的规则建议 · {intake.recommendation_records.length} 项
+              {t("以前采用的规则建议 ·")}
+              {intake.recommendation_records.length}
+              {t("项")}
             </summary>
             <ul>
               {intake.recommendation_records.map((record) => {
@@ -758,7 +863,7 @@ function IntakeGuide({
                 return source ? (
                   <li key={record.path}>
                     <strong>
-                      {record.label} · {source.label}
+                      {t(record.label)} · {t(source.label)}
                     </strong>
                     <p>{record.reason}</p>
                   </li>
@@ -778,7 +883,9 @@ function IntakeGuide({
             />
             {actionStale && (
               <p className="assistant-warning">
-                参考结构已变化或仍在读取，请重新核对完整动作里的关节；旧动作不会自动套到新模型。
+                {t(
+                  "参考结构已变化或仍在读取，请重新核对完整动作里的关节；旧动作不会自动套到新模型。",
+                )}
               </p>
             )}
             {sourceNote("prd.intake.action_draft")}
@@ -787,67 +894,71 @@ function IntakeGuide({
       </aside>
       <div className="guide-body">
         <div className="guide-step-heading">
-          <span>第 {step + 1} 步 / 共 5 步</span>
+          <span>
+            {t("第", "Step ")}
+            {step + 1}
+            {t("步 / 共 5 步")}
+          </span>
           <h3 ref={titleRef} tabIndex={-1}>
             {
               [
-                "先说你想实现什么",
-                "选出要控制的对象",
-                "把动作说具体一点",
-                "准备在哪儿运行，用什么板",
-                "检查这份需求是否说清楚",
+                t("先说你想实现什么"),
+                t("选出要控制的对象"),
+                t("把动作说具体一点"),
+                t("准备在哪儿运行，用什么板"),
+                t("检查这份需求是否说清楚"),
               ][step]
             }
           </h3>
         </div>
         {issueFocus && (
           <p className="guide-focus-notice" role="status">
-            正在查看：{issueFocus.issue.label}。
+            {t("正在查看：")}
+            {displayRequirementIssueLabel(issueFocus.issue)}。
             {issueFocus.issue.path.includes("action_draft") &&
             /待确认|待核对/.test(issueFocus.issue.message)
-              ? "请整理下方待核对清单，不需要另找一组隐藏的参数。"
-              : "已定位到相关填写位置，改完后可以回第 5 步重新检查。"}
+              ? t("请整理下方待核对清单，不需要另找一组隐藏的参数。")
+              : t("已定位到相关填写位置，改完后可以回第 5 步重新检查。")}
           </p>
         )}
         {step === 0 && (
           <>
             <div className="guide-choice-intro">
-              <strong>先用自己的话说清动作</strong>
+              <strong>{t("先用自己的话说清动作")}</strong>
               <p>
-                可以照这个顺序写：哪一边、做什么、做几次、最后停在哪里。例如“右臂抬起，招手三次，最后放到身体旁边”。不需要先知道专业名词。
+                {t(
+                  "可以照这个顺序写：哪一边、做什么、做几次、最后停在哪里。例如“右臂抬起，招手三次，最后放到身体旁边”。不需要先知道专业名词。",
+                )}
               </p>
               <small>
-                “推荐”是可选的填写建议；点击选项后才会改变草稿。AI
-                整理需求和保存仍是分开的操作。
+                {t(
+                  "“推荐”是可选的填写建议；点击选项后才会改变草稿。AI 整理需求和保存仍是分开的操作。",
+                )}
               </small>
             </div>
-            <label className="field request-field">
-              <span>
-                你希望机器人做什么 <small>保留你的原话</small>
-              </span>
-              <textarea
-                aria-label="你希望机器人做什么"
-                rows={4}
-                maxLength={4000}
-                value={draft.request}
-                disabled={locked}
-                onChange={(e) =>
-                  setDraft({ ...draft, request: e.target.value })
-                }
-                placeholder="例如：让机器人抬起右手，来回招手三次，最后放回原位。"
-              />
-              <small>
-                先描述意图。后面再选部位、填动作细节；AI 不会仅凭一句话猜接线。
-              </small>
-            </label>
+            <RequestInput
+              overflow={speechOverflow}
+              onOverflowChange={onSpeechOverflowChange}
+              note={t("保留你的原话")}
+              rows={4}
+              value={draft.request}
+              disabled={locked}
+              onChange={(request) => setDraft({ ...draft, request })}
+              placeholder={t(
+                "例如：让机器人抬起右手，来回招手三次，最后放回原位。",
+              )}
+              hint={t(
+                "先描述意图。后面再选部位、填动作细节；AI 不会仅凭一句话猜接线。",
+              )}
+            />
             <div className="field">
               <span data-intake-path="prd.intake.intent" tabIndex={-1}>
-                它更接近哪类动作？
+                {t("它更接近哪类动作？")}
               </span>
               <div
                 className="intent-options"
                 role="radiogroup"
-                aria-label="动作类型"
+                aria-label={t("动作类型")}
               >
                 {(
                   Object.keys(intentLabels) as Exclude<
@@ -864,37 +975,40 @@ function IntakeGuide({
                     disabled={locked}
                     onClick={() => setDraft(changeIntent(draft, intent))}
                   >
-                    <strong>{intentLabels[intent]}</strong>
+                    <strong>{t(intentLabels[intent])}</strong>
                     <small>
                       {intent === "position"
-                        ? "只做一次定位，例如抬起一个关节后停住。"
+                        ? t("只做一次定位，例如抬起一个关节后停住。")
                         : intent === "threshold"
-                          ? "例如数值升到某个大小后，把开关打开。"
+                          ? t("例如数值升到某个大小后，把开关打开。")
                           : intent === "oscillate"
-                            ? "例如招手、摆动；要说明次数和结束姿势。"
-                            : "例如几个部位依次配合；先保留完整需求。"}
+                            ? t("例如招手、摆动；要说明次数和结束姿势。")
+                            : t("例如几个部位依次配合；先保留完整需求。")}
                     </small>
                     <span>
                       {intent === "position" || intent === "threshold"
-                        ? "可接现有本机测试"
+                        ? t("可接现有本机测试")
                         : intake.motion_plan
-                          ? "已采用逐关节程序，核对后检查执行条件"
-                          : "Sophicore 动作可转换为逐关节姿势程序"}
+                          ? t("已采用逐关节程序，核对后检查执行条件")
+                          : t("Sophicore 动作可转换为逐关节姿势程序")}
                     </span>
                   </button>
                 ))}
               </div>
               {sourceNote("prd.intake.intent")}
               <small className="guide-choice-help">
-                拿不准时，先保留原话，再点“按需求智能填写”整理；不用把完整动作硬改成单个关节。
+                {t(
+                  "拿不准时，先保留原话，再点“按需求智能填写”整理；不用把完整动作硬改成单个关节。",
+                )}
               </small>
             </div>
             <label className="field">
               <span>
-                给这份需求起个名字 <small>可以稍后再填</small>
+                {t("给这份需求起个名字")}
+                <small>{t("可以稍后再填")}</small>
               </span>
               <input
-                aria-label="工程名称"
+                aria-label={t("工程名称")}
                 maxLength={80}
                 value={draft.name}
                 disabled={locked}
@@ -906,22 +1020,22 @@ function IntakeGuide({
                     ),
                   )
                 }
-                placeholder="例如：右手招手需求"
+                placeholder={t("例如：右手招手需求")}
               />
               {sourceNote("name")}
             </label>
             <details className="guide-extra">
-              <summary>补充使用场景（选填）</summary>
+              <summary>{t("补充使用场景（选填）")}</summary>
               <label className="field">
-                <span>用在什么场景</span>
+                <span>{t("用在什么场景")}</span>
                 <textarea
-                  aria-label="使用场景"
+                  aria-label={t("使用场景")}
                   rows={2}
                   maxLength={500}
                   value={draft.prd.use_case}
                   disabled={locked}
                   onChange={(e) => updateText("use_case", e.target.value)}
-                  placeholder="例如：迎宾时打招呼"
+                  placeholder={t("例如：迎宾时打招呼")}
                 />
                 {sourceNote("prd.use_case")}
               </label>
@@ -943,9 +1057,9 @@ function IntakeGuide({
               <div className="notice">
                 <Info size={19} />
                 <div>
-                  先选动作类型，才能知道需要哪种控制对象。
+                  {t("先选动作类型，才能知道需要哪种控制对象。")}
                   <button className="text-button" onClick={() => goStep(0)}>
-                    返回选动作
+                    {t("返回选动作")}
                   </button>
                 </div>
               </div>
@@ -956,16 +1070,24 @@ function IntakeGuide({
               <>
                 <p className="guide-intro">
                   {action || intake.motion_plan || intake.intent === "other"
-                    ? "先核对参考模型和涉及的关节。预览关节只用来查看模型，完整动作可以涉及多个关节。"
-                    : "从已有结构中选择一个关节。可以先查看 3D，再确认部位；没选清楚也能保存。"}
+                    ? t(
+                        "先核对参考模型和涉及的关节。预览关节只用来查看模型，完整动作可以涉及多个关节。",
+                      )
+                    : t(
+                        "从已有结构中选择一个关节。可以先查看 3D，再确认部位；没选清楚也能保存。",
+                      )}
                 </p>
                 <div className="guide-choice-intro">
-                  <strong>还没有自己的模型，也能先整理需求</strong>
+                  <strong>{t("还没有自己的模型，也能先整理需求")}</strong>
                   <p>
-                    可以用下方参考结构看部位，再核对左右侧和关节名称。参考结构可用于核对部位并生成本机仿真程序，不代表你的实物尺寸或接线。
+                    {t(
+                      "可以用下方参考结构看部位，再核对左右侧和关节名称。参考结构可用于核对部位并生成本机仿真程序，不代表你的实物尺寸或接线。",
+                    )}
                   </p>
                   <small>
-                    招手等动作可由多个关节配合；预览下拉框只决定你正在看哪个关节。
+                    {t(
+                      "招手等动作可由多个关节配合；预览下拉框只决定你正在看哪个关节。",
+                    )}
                   </small>
                 </div>
                 <StructurePanel
@@ -998,31 +1120,36 @@ function IntakeGuide({
                   />
                 )}
                 <p className="field-hint">
-                  更换模型后需要重新选关节；已填角度会保留，后台会检查是否超出新模型范围。
+                  {t(
+                    "更换模型后需要重新选关节；已填角度会保留，后台会检查是否超出新模型范围。",
+                  )}
                 </p>
               </>
             ) : intake.intent === "threshold" ? (
               <div className="guide-fact">
-                <strong>本轮使用模拟传感器和虚拟开关</strong>
+                <strong>{t("本轮使用模拟传感器和虚拟开关")}</strong>
                 <p>
-                  传感器提供 0–1 的测试数值。达到阈值输出 1，低于阈值输出
-                  0；无需选择机械关节。
+                  {t(
+                    "传感器提供 0–1 的测试数值。达到阈值输出 1，低于阈值输出 0；无需选择机械关节。",
+                  )}
                 </p>
-                <span className="origin-tag">平台固定设置</span>
+                <span className="origin-tag">{t("平台固定设置")}</span>
                 <p>
-                  真实传感器型号可在“硬件与资料”记录；填写型号不会自动适配驱动。
+                  {t(
+                    "真实传感器型号可在“硬件与资料”记录；填写型号不会自动适配驱动。",
+                  )}
                 </p>
               </div>
             ) : (
               <div className="guide-fact">
-                <strong>先记录要控制的对象</strong>
+                <strong>{t("先记录要控制的对象")}</strong>
                 <p>
-                  请在动作描述中写清机器人、部位和设备。Sophicore
-                  的多关节顺序和往返动作可以在第 3
-                  步显式采用逐关节姿势程序；其他要求继续保留并交给后台检查支持范围。
+                  {t(
+                    "请在动作描述中写清机器人、部位和设备。Sophicore 的多关节顺序和往返动作可以在第 3 步显式采用逐关节姿势程序；其他要求继续保留并交给后台检查支持范围。",
+                  )}
                 </p>
                 <button className="text-button" onClick={() => goStep(2)}>
-                  继续写动作细节
+                  {t("继续写动作细节")}
                 </button>
               </div>
             )}
@@ -1056,8 +1183,8 @@ function IntakeGuide({
               )}
             {(motion || completeAction) && (
               <div className="angle-unit-control">
-                <span>角度显示</span>
-                <div role="group" aria-label="角度单位">
+                <span>{t("角度显示")}</span>
+                <div role="group" aria-label={t("角度单位")}>
                   <button
                     type="button"
                     className={angleUnit === "deg" ? "active" : ""}
@@ -1065,7 +1192,7 @@ function IntakeGuide({
                     disabled={locked}
                     onClick={() => setAngleUnit("deg")}
                   >
-                    度 °
+                    {t("度 °")}
                   </button>
                   <button
                     type="button"
@@ -1074,12 +1201,13 @@ function IntakeGuide({
                     disabled={locked}
                     onClick={() => setAngleUnit("rad")}
                   >
-                    弧度 rad
+                    {t("弧度 rad")}
                   </button>
                 </div>
                 <small>
-                  不熟悉弧度可以用“度”。只改变通用参数的显示，程序统一使用
-                  rad；阶段角度会注明自己的单位。
+                  {t(
+                    "不熟悉弧度可以用“度”。只改变通用参数的显示，程序统一使用 rad；阶段角度会注明自己的单位。",
+                  )}
                 </small>
               </div>
             )}
@@ -1096,59 +1224,73 @@ function IntakeGuide({
               <>
                 <p className="notice">
                   {intake.motion_plan
-                    ? "执行采用上面的逐关节姿势程序。下面仍保留原始动作草稿和补充要求；有冲突或未决项需要人工处理。"
-                    : "这份需求按完整动作保存。可以显式采用上面的逐关节姿势建议并核对，再检查能否执行。"}
+                    ? t(
+                        "执行采用上面的逐关节姿势程序。下面仍保留原始动作草稿和补充要求；有冲突或未决项需要人工处理。",
+                      )
+                    : t(
+                        "这份需求按完整动作保存。可以显式采用上面的逐关节姿势建议并核对，再检查能否执行。",
+                      )}
                 </p>
                 {intake.motion_plan ? (
                   <details className="source-details">
                     <summary>
-                      保留的旧草稿通用参数（只读，不用于当前执行）
+                      {t("保留的旧草稿通用参数（只读，不用于当前执行）")}
                     </summary>
                     <p>
-                      当前执行速度、误差、加速度和超时均以上方“逐关节姿势程序”为准；下面仅保留以前填写的草稿值。
+                      {t(
+                        "当前执行速度、误差、加速度和超时均以上方“逐关节姿势程序”为准；下面仅保留以前填写的草稿值。",
+                      )}
                     </p>
                     <dl>
-                      <dt>旧最快转速 (rad/s)</dt>
-                      <dd>{answers.max_velocity_rad_s ?? "未填写"}</dd>
-                      <dt>旧允许误差 (rad)</dt>
-                      <dd>{answers.tolerance_rad ?? "未填写"}</dd>
-                      <dt>旧观察时长 (s)</dt>
-                      <dd>{answers.duration_s ?? "未填写"}</dd>
+                      <dt>{t("旧最快转速 (rad/s)")}</dt>
+                      <dd>{answers.max_velocity_rad_s ?? t("未填写")}</dd>
+                      <dt>{t("旧允许误差 (rad)")}</dt>
+                      <dd>{answers.tolerance_rad ?? t("未填写")}</dd>
+                      <dt>{t("旧观察时长 (s)")}</dt>
+                      <dd>{answers.duration_s ?? t("未填写")}</dd>
                     </dl>
                   </details>
                 ) : (
                   <>
-                    <h4>整套动作的通用参数建议</h4>
+                    <h4>{t("整套动作的通用参数建议")}</h4>
                     <p className="field-hint">
-                      不知道数字怎么填，可以点下面的选项。推荐只用于本机需求草稿；每个阶段和关节的具体参数还要核对。
+                      {t(
+                        "不知道数字怎么填，可以点下面的选项。推荐只用于本机需求草稿；每个阶段和关节的具体参数还要核对。",
+                      )}
                     </p>
                     <div className="guide-fields">
                       {!!action?.related_joints.length &&
                         numberField(
                           "max_velocity_rad_s",
-                          "最快每秒转多少",
+                          t("最快每秒转多少"),
                           "speed",
                         )}
                       {!!action?.related_joints.length &&
-                        numberField("tolerance_rad", "允许多大误差", "angle")}
-                      {numberField("duration_s", "预计观察多久", "seconds")}
+                        numberField(
+                          "tolerance_rad",
+                          t("允许多大误差"),
+                          "angle",
+                        )}
+                      {numberField("duration_s", t("预计观察多久"), "seconds")}
                     </div>
                   </>
                 )}
               </>
             ) : !intake.intent ? (
-              <div className="notice">先在第 1 步选择动作类型。</div>
+              <div className="notice">{t("先在第 1 步选择动作类型。")}</div>
             ) : intake.intent === "other" ? (
               <label className="field">
-                <span>动作还需要哪些步骤和条件</span>
+                <span>{t("动作还需要哪些步骤和条件")}</span>
                 <textarea
-                  aria-label="其他动作细节"
+                  aria-label={t("其他动作细节")}
                   rows={5}
                   maxLength={2000}
                   value={answers.other_action}
                   onChange={(e) => updateAnswer("other_action", e.target.value)}
                   disabled={locked}
-                  placeholder="谁来触发、先做什么、后做什么、什么情况下停下……不知道的写待确认。"
+                  placeholder={t(
+                    "谁来触发、先做什么、后做什么、什么情况下停下……不知道的写待确认。",
+                  )}
                 />
               </label>
             ) : (
@@ -1157,8 +1299,9 @@ function IntakeGuide({
                   <div className="notice guide-scope-note">
                     <Info size={18} />
                     <span>
-                      这里保留单轴 A / B 的原始描述。Sophicore
-                      招手可以显式采用上方逐关节姿势建议，并核对全部关节、时间和结束姿势；这组原始描述不会自动升级成完整执行程序。
+                      {t(
+                        "这里保留单轴 A / B 的原始描述。Sophicore 招手可以显式采用上方逐关节姿势建议，并核对全部关节、时间和结束姿势；这组原始描述不会自动升级成完整执行程序。",
+                      )}
                     </span>
                   </div>
                 )}
@@ -1166,24 +1309,28 @@ function IntakeGuide({
                   {intake.intent === "position" &&
                     numberField(
                       "target_rad",
-                      "转到哪个角度",
+                      t("转到哪个角度"),
                       "angle",
-                      "相对模型的零位，不是“再转多少度”。",
+                      t("相对模型的零位，不是“再转多少度”。"),
                     )}
                   {intake.intent === "oscillate" && (
                     <>
-                      {numberField("wave_start_rad", "位置 A", "angle")}
-                      {numberField("wave_end_rad", "位置 B", "angle")}
+                      {numberField("wave_start_rad", t("位置 A"), "angle")}
+                      {numberField("wave_end_rad", t("位置 B"), "angle")}
                       {numberField(
                         "repetitions",
-                        "来回几次",
+                        t("来回几次"),
                         "count",
-                        "A → B → A 算一次。",
+                        t("A → B → A 算一次。"),
                       )}
-                      {numberField("dwell_s", "每到一个位置停多久", "seconds")}
+                      {numberField(
+                        "dwell_s",
+                        t("每到一个位置停多久"),
+                        "seconds",
+                      )}
                       <div className="field">
                         <GuideOptions
-                          label="结束姿态"
+                          label={t("结束姿态")}
                           value={answers.end_behavior}
                           disabled={locked}
                           onChange={(value) =>
@@ -1195,56 +1342,58 @@ function IntakeGuide({
                           options={[
                             {
                               value: "return_start",
-                              label: "回到位置 A",
-                              description:
+                              label: t("回到位置 A"),
+                              description: t(
                                 "只表示回到你填写的位置 A，不等于手臂自然下垂。",
+                              ),
                             },
                             {
                               value: "hold_end",
-                              label: "停在位置 B",
-                              description: "动作做完后停在你填写的位置 B。",
+                              label: t("停在位置 B"),
+                              description: t("动作做完后停在你填写的位置 B。"),
                             },
                             {
                               value: "custom",
-                              label: "停在另一个位置",
-                              description:
+                              label: t("停在另一个位置"),
+                              description: t(
                                 "在下方填写最后的角度；不知道可以先留空。",
+                              ),
                             },
                           ]}
                         />
                         {sourceNote("prd.intake.answers.end_behavior")}
                       </div>
                       {answers.end_behavior === "custom" &&
-                        numberField("end_position_rad", "结束角度", "angle")}
+                        numberField("end_position_rad", t("结束角度"), "angle")}
                     </>
                   )}
                   {intake.intent === "threshold" &&
                     numberField(
                       "threshold",
-                      "达到多少时触发",
+                      t("达到多少时触发"),
                       "scalar",
-                      "数值 ≥ 阈值时输出 1，低于时输出 0。",
+                      t("数值 ≥ 阈值时输出 1，低于时输出 0。"),
                     )}
                   {motion &&
                     numberField(
                       "max_velocity_rad_s",
-                      "最快每秒转多少",
+                      t("最快每秒转多少"),
                       "speed",
                     )}
                   {numberField(
                     "duration_s",
                     intake.intent === "oscillate"
-                      ? "预计观察多久"
-                      : "本轮观察多久",
+                      ? t("预计观察多久")
+                      : t("本轮观察多久"),
                     "seconds",
                   )}
                   {motion &&
                     numberField(
                       "tolerance_rad",
-                      "允许多大误差",
+                      t("允许多大误差"),
                       motion ? "angle" : "scalar",
                       intake.intent === "threshold"
-                        ? "归一化数值的测试误差。"
+                        ? t("归一化数值的测试误差。")
                         : undefined,
                     )}
                 </div>
@@ -1254,21 +1403,25 @@ function IntakeGuide({
               (completeAction || motion || intake.intent === "threshold") && (
                 <div className="guide-suggestions">
                   <div>
-                    <strong>想先填一组参考值？</strong>
+                    <strong>{t("想先填一组参考值？")}</strong>
                     <p>
                       {motion || action?.related_joints.length
-                        ? "普通演示：30°/秒，允许差 2°；"
+                        ? t("普通演示：30°/秒，允许差 2°；")
                         : intake.intent === "threshold" && !completeAction
-                          ? "模拟触发值 0.5；"
+                          ? t("模拟触发值 0.5；")
                           : ""}
-                      观察 {completeAction ? 15 : 8} 秒。
+                      {t("观察")}
+                      {completeAction ? 15 : 8}
+                      {t("秒。")}
                       {intake.intent === "oscillate" && !completeAction
-                        ? "往返 3 次，端点不停留。"
+                        ? t("往返 3 次，端点不停留。")
                         : ""}
-                      只补本组空白，保留已填内容。
+                      {t("只补本组空白，保留已填内容。")}
                     </p>
                     <small>
-                      这是可修改的本机草稿示例，不是实物参数。不会填写目标角度、改变动作步骤或确认未知信息。
+                      {t(
+                        "这是可修改的本机草稿示例，不是实物参数。不会填写目标角度、改变动作步骤或确认未知信息。",
+                      )}
                     </small>
                   </div>
                   <button
@@ -1277,7 +1430,7 @@ function IntakeGuide({
                     disabled={locked}
                     onClick={suggestCommon}
                   >
-                    采用本组推荐参数
+                    {t("采用本组推荐参数")}
                   </button>
                 </div>
               )}
@@ -1301,7 +1454,7 @@ function IntakeGuide({
           <>
             <div data-intake-path="prd.intake.mode" tabIndex={-1}>
               <GuideOptions
-                label="这次准备做什么"
+                label={t("这次准备做什么")}
                 value={intake.mode}
                 disabled={locked}
                 onChange={(value) =>
@@ -1310,24 +1463,26 @@ function IntakeGuide({
                 options={[
                   {
                     value: "simulation",
-                    label: "先在电脑里验证",
-                    description:
+                    label: t("先在电脑里验证"),
+                    description: t(
                       "推荐从这里开始：受支持的任务可以编译并用模拟设备检查；不接真实电机。",
+                    ),
                     recommended: true,
                   },
                   {
                     value: "hardware_notes",
-                    label: "先整理实物资料",
-                    description:
+                    label: t("先整理实物资料"),
+                    description: t(
                       "记录板子、电机、供电与接线。本轮只保存资料，暂不执行。",
+                    ),
                   },
                 ]}
               />
             </div>
             <label className="field">
-              <span>为哪种板型编译程序</span>
+              <span>{t("为哪种板型编译程序")}</span>
               <select
-                aria-label="目标控制板"
+                aria-label={t("目标控制板")}
                 value={answers.board || ""}
                 disabled={locked}
                 onChange={(e) =>
@@ -1337,7 +1492,7 @@ function IntakeGuide({
                   )
                 }
               >
-                <option value="">还没确定</option>
+                <option value="">{t("还没确定")}</option>
                 {(catalog?.boards?.length
                   ? catalog.boards
                   : [
@@ -1346,34 +1501,39 @@ function IntakeGuide({
                     ]
                 ).map((board) => (
                   <option key={board.id} value={board.id}>
-                    {board.label}
-                    {board.id === "esp32s3" ? " · 无实物时可用作编译参考" : ""}
+                    {t(board.label)}
+                    {board.id === "esp32s3"
+                      ? t(" · 无实物时可用作编译参考")
+                      : ""}
                   </option>
                 ))}
               </select>
               <small>
-                还没有板子时，推荐先选 ESP32-S3
-                作为本机编译参考。已有实物就按实物选，不确定可以留空。这里不能确定具体开发板型号、Flash
-                / PSRAM 或接线。
+                {t(
+                  "还没有板子时，推荐先选 ESP32-S3 作为本机编译参考。已有实物就按实物选，不确定可以留空。这里不能确定具体开发板型号、Flash / PSRAM 或接线。",
+                )}
               </small>
               {sourceNote("prd.intake.answers.board")}
             </label>
             {sourceNote("prd.intake.mode")}
             <div className="guide-fact compact">
-              <strong>电脑环境和通信由平台提供</strong>
+              <strong>{t("电脑环境和通信由平台提供")}</strong>
               <p>
-                ROS 2
-                Humble；串口消息格式；主机虚拟串口测试。确认拆分后，两端会按同一份通信约定生成。
+                {t(
+                  "ROS 2 Humble；串口消息格式；主机虚拟串口测试。确认拆分后，两端会按同一份通信约定生成。",
+                )}
               </p>
-              <span className="origin-tag">平台固定设置</span>
+              <span className="origin-tag">{t("平台固定设置")}</span>
             </div>
             <details
               className="guide-extra hardware-notes"
               open={intake.mode === "hardware_notes"}
             >
-              <summary>实物资料档案 · 可以先留空</summary>
+              <summary>{t("实物资料档案 · 可以先留空")}</summary>
               <p className="field-hint">
-                模拟模式不要求填写电机型号或引脚。有出处只表示资料已提供，不表示驱动已适配或实物验证通过。
+                {t(
+                  "模拟模式不要求填写电机型号或引脚。有出处只表示资料已提供，不表示驱动已适配或实物验证通过。",
+                )}
               </p>
               {(Object.keys(hardwareNoteLabels) as HardwareNoteKey[]).map(
                 (field) => {
@@ -1402,33 +1562,36 @@ function IntakeGuide({
                     >
                       <label className="field">
                         <span>
-                          {hardwareNoteLabels[field]}{" "}
+                          {t(hardwareNoteLabels[field])}{" "}
                           <small>
                             {note.status === "unknown"
-                              ? "待补"
+                              ? t("待补")
                               : note.status === "documented"
-                                ? "已填资料出处"
-                                : "你填写的，待核对"}
+                                ? t("已填资料出处")
+                                : t("你填写的，待核对")}
                           </small>
                         </span>
                         <input
-                          aria-label={hardwareNoteLabels[field]}
+                          aria-label={t(hardwareNoteLabels[field])}
                           maxLength={2000}
                           value={note.value}
                           disabled={locked}
                           onChange={(e) => patch(e.target.value, note.source)}
-                          placeholder="不知道先留空，不用猜"
+                          placeholder={t("不知道先留空，不用猜")}
                         />
                       </label>
                       <label className="field">
-                        <span>资料出处</span>
+                        <span>{t("资料出处")}</span>
                         <input
-                          aria-label={`${hardwareNoteLabels[field]}的出处`}
+                          aria-label={t(
+                            `${hardwareNoteLabels[field]}的出处`,
+                            `Source for ${t(hardwareNoteLabels[field])}`,
+                          )}
                           maxLength={2000}
                           value={note.source}
                           disabled={locked}
                           onChange={(e) => patch(note.value, e.target.value)}
-                          placeholder="手册链接、文件名或实物标签"
+                          placeholder={t("手册链接、文件名或实物标签")}
                         />
                       </label>
                     </div>
@@ -1468,38 +1631,44 @@ function IntakeGuide({
               />
             )}
             <div className="guide-choice-intro">
-              <strong>先检查动作结果，再看程序能不能运行</strong>
+              <strong>{t("先检查动作结果，再看程序能不能运行")}</strong>
               <p>
-                写清做了几次、最后停在哪里、误差允许多少。下面的选项可以帮助你补充检查方式；没有把握的条件保留待确认。
+                {t(
+                  "写清做了几次、最后停在哪里、误差允许多少。下面的选项可以帮助你补充检查方式；没有把握的条件保留待确认。",
+                )}
               </p>
             </div>
             <label className="field">
               <span>
-                怎样才算完成 <small>保留你的要求</small>
+                {t("怎样才算完成")}
+                <small>{t("保留你的要求")}</small>
               </span>
               <textarea
-                aria-label="怎样才算完成"
+                aria-label={t("怎样才算完成")}
                 rows={3}
                 value={draft.prd.acceptance}
                 maxLength={2000}
                 disabled={locked}
                 onChange={(e) => updateText("acceptance", e.target.value)}
-                placeholder="例如：往返三次后回到原位。不要只写‘效果正常’。"
+                placeholder={t(
+                  "例如：往返三次后回到原位。不要只写‘效果正常’。",
+                )}
               />
               {sourceNote("prd.acceptance")}
             </label>
             <label className="field">
               <span>
-                必须遵守的限制 <small>选填</small>
+                {t("必须遵守的限制")}
+                <small>{t("选填")}</small>
               </span>
               <textarea
-                aria-label="必须遵守的限制"
+                aria-label={t("必须遵守的限制")}
                 rows={2}
                 value={draft.prd.constraints}
                 maxLength={2000}
                 disabled={locked}
                 onChange={(e) => updateText("constraints", e.target.value)}
-                placeholder="例如：其他关节不动；暂时不连接实物。"
+                placeholder={t("例如：其他关节不动；暂时不连接实物。")}
               />
               {sourceNote("prd.constraints")}
             </label>
@@ -1523,44 +1692,55 @@ function IntakeGuide({
               >
                 <strong>
                   {checking
-                    ? "正在检查这份需求…"
+                    ? t("正在检查这份需求…")
                     : error
-                      ? "暂时无法检查"
+                      ? t("暂时无法检查")
                       : readiness?.can_plan
-                        ? isPublicDemo ? "可以预览需求摘要；实际生成需在本机核对" : "必要信息已齐，可以交给 AI 拆分"
+                        ? isPublicDemo
+                          ? t("可以预览需求摘要；实际生成需在本机核对")
+                          : t("必要信息已齐，可以交给 AI 拆分")
                         : readiness?.status === "unsupported"
-                          ? "这份需求可以保存，当前还不能执行"
-                          : "还需要补充一些信息"}
+                          ? t("这份需求可以保存，当前还不能执行")
+                          : t("还需要补充一些信息")}
                 </strong>
                 <p>
-                  {error ||
-                    readiness?.notice ||
-                    "只检查填写内容，不调用 AI，也不启动程序。"}
+                  {displayRequirementMessage(
+                    error || readiness?.notice || "",
+                  ) || t("只检查填写内容，不调用 AI，也不启动程序。")}
                 </p>
               </div>
               {issues.length > 0 && (
                 <section
                   className="readiness-issue-section"
-                  aria-label="还需要填写或核对"
+                  aria-label={t("还需要填写或核对")}
                 >
-                  <h4>还需要填写或核对 · {issues.length} 项</h4>
+                  <h4>
+                    {t("还需要填写或核对 ·")}
+                    {issues.length}
+                    {t("项")}
+                  </h4>
                   <p>
-                    这些是可以补充或需要人工核对的内容。点击按钮会定位到对应位置。
+                    {t(
+                      "这些是可以补充或需要人工核对的内容。点击按钮会定位到对应位置。",
+                    )}
                   </p>
                   <ul className="guide-issues">
                     {issues.map((issue, index) => (
                       <li key={`${issue.path}-${index}`}>
                         <div>
-                          <strong>{issue.label}</strong>
-                          <p>{issue.message}</p>
+                          <strong>{displayRequirementIssueLabel(issue)}</strong>
+                          <p>{displayRequirementIssue(issue)}</p>
                         </div>
                         <button
                           className="text-button"
                           type="button"
-                          aria-label={`填写/核对${issue.label}`}
+                          aria-label={t(
+                            `填写/核对${issue.label}`,
+                            `Complete / review ${displayRequirementIssueLabel(issue)}`,
+                          )}
                           onClick={() => goIssue(issue)}
                         >
-                          填写 / 核对
+                          {t("填写 / 核对")}
                           <PencilSimple size={14} />
                         </button>
                       </li>
@@ -1571,26 +1751,35 @@ function IntakeGuide({
               {capabilityIssues.length > 0 && (
                 <section
                   className="readiness-issue-section capability-issues"
-                  aria-label="当前功能还不支持"
+                  aria-label={t("当前功能还不支持")}
                 >
-                  <h4>当前功能还不支持 · {capabilityIssues.length} 项</h4>
+                  <h4>
+                    {t("当前功能还不支持 ·")}
+                    {capabilityIssues.length}
+                    {t("项")}
+                  </h4>
                   <p>
-                    下面说明的是平台现阶段做不到的部分。继续补数值、移除待核对提醒，都不会自动增加这些执行能力；完整需求仍然可以保存。
+                    {t(
+                      "下面说明的是平台现阶段做不到的部分。继续补数值、移除待核对提醒，都不会自动增加这些执行能力；完整需求仍然可以保存。",
+                    )}
                   </p>
                   <ul className="guide-issues">
                     {capabilityIssues.map((issue, index) => (
                       <li key={`${issue.path}-${index}`}>
                         <div>
-                          <strong>{issue.label}</strong>
-                          <p>{issue.message}</p>
+                          <strong>{displayRequirementIssueLabel(issue)}</strong>
+                          <p>{displayRequirementIssue(issue)}</p>
                         </div>
                         <button
                           type="button"
                           className="text-button"
-                          aria-label={`查看功能限制相关要求：${issue.label}`}
+                          aria-label={t(
+                            `查看功能限制相关要求：${issue.label}`,
+                            `View requirements for this limitation: ${displayRequirementIssueLabel(issue)}`,
+                          )}
                           onClick={() => goIssue(issue)}
                         >
-                          查看相关要求
+                          {t("查看相关要求")}
                         </button>
                       </li>
                     ))}
@@ -1609,22 +1798,22 @@ function IntakeGuide({
                   )}
                   <dl className="guide-summary">
                     {[
-                      ["动作", readiness.summary.action, 0],
-                      ["结构与部位", readiness.summary.model, 1],
+                      [t("动作"), readiness.summary.action, 0],
+                      [t("结构与部位"), readiness.summary.model, 1],
                       [
-                        "硬件与范围",
-                        `${readiness.summary.device} · ${readiness.summary.scope}`,
+                        t("硬件与范围"),
+                        `${displayRequirementMessage(readiness.summary.device)} · ${displayRequirementMessage(readiness.summary.scope)}`,
                         3,
                       ],
-                      ["完成标准", readiness.summary.criteria, 4],
+                      [t("完成标准"), readiness.summary.criteria, 4],
                     ].map(([label, value, index]) => (
                       <div key={label}>
                         <dt>{label}</dt>
-                        <dd>{value || "还没填写"}</dd>
+                        <dd>{value || t("还没填写")}</dd>
                         <button
                           className="text-button"
                           onClick={() => goStep(Number(index))}
-                          aria-label={`修改${label}`}
+                          aria-label={t(`修改${label}`, `Edit ${label}`)}
                         >
                           <PencilSimple size={15} />
                         </button>
@@ -1633,7 +1822,9 @@ function IntakeGuide({
                   </dl>
                   <details className="guide-extra">
                     <summary>
-                      查看字段和来源 · {readiness.resolved.length} 项
+                      {t("查看字段和来源 ·")}
+                      {readiness.resolved.length}
+                      {t("项")}
                     </summary>
                     <div className="guide-sources">
                       {readiness.resolved
@@ -1643,20 +1834,20 @@ function IntakeGuide({
                         )
                         .map((item, index) => (
                           <div key={`${item.path}-${index}`}>
-                            <strong>{item.label}</strong>
+                            <strong>{t(item.label)}</strong>
                             <span>
                               {typeof item.value === "object"
                                 ? JSON.stringify(item.value)
-                                : String(item.value ?? "待补")}{" "}
+                                : String(item.value ?? t("待补"))}{" "}
                               {item.unit}
                             </span>
                             <small className="origin-tag">
                               {
                                 {
-                                  user: "你填写的",
-                                  model: "结构提供",
-                                  platform: "平台设置",
-                                  suggested: "已采用建议",
+                                  user: t("你填写的"),
+                                  model: t("结构提供"),
+                                  platform: t("平台设置"),
+                                  suggested: t("已采用建议"),
                                 }[item.origin]
                               }
                             </small>
@@ -1673,8 +1864,9 @@ function IntakeGuide({
             <div className="notice">
               <Info size={18} />
               <span>
-                资料齐全只表示可以拆分。拆分后还要人工核对 ROS / ESP32
-                分工、通信和检查标准，确认后才生成、编译。
+                {t(
+                  "资料齐全只表示可以拆分。拆分后还要人工核对 ROS / ESP32 分工、通信和检查标准，确认后才生成、编译。",
+                )}
               </span>
             </div>
             <details
@@ -1682,9 +1874,11 @@ function IntakeGuide({
               data-intake-path="workflow"
               tabIndex={-1}
             >
-              <summary>查看工程设置与执行顺序</summary>
+              <summary>{t("查看工程设置与执行顺序")}</summary>
               <p className="field-hint">
-                这些设置用于受支持的本机任务。修改后也要重新核对，不会让未适配动作自动变成可执行。
+                {t(
+                  "这些设置用于受支持的本机任务。修改后也要重新核对，不会让未适配动作自动变成可执行。",
+                )}
               </p>
               <WorkflowEditor
                 value={draft.workflow}
@@ -1695,23 +1889,23 @@ function IntakeGuide({
               {manifest ? (
                 <ProjectManifest manifest={manifest} stale={manifestStale} />
               ) : (
-                <p>保存可执行需求后，后台才会生成对应的工程清单。</p>
+                <p>{t("保存可执行需求后，后台才会生成对应的工程清单。")}</p>
               )}
             </details>
           </>
         )}
         {step !== 4 && readiness && (
-          <section className="guide-step-note" aria-label="本步待核对清单">
+          <section className="guide-step-note" aria-label={t("本步待核对清单")}>
             {issues.some((issue) => issueDestination(issue).step === step) ? (
               <>
                 <strong>
-                  本步还有{" "}
+                  {t("本步还有")}{" "}
                   {
                     issues.filter(
                       (issue) => issueDestination(issue).step === step,
                     ).length
                   }{" "}
-                  项需要填写或核对
+                  {t("项需要填写或核对")}
                 </strong>
                 <ul>
                   {issues
@@ -1719,30 +1913,36 @@ function IntakeGuide({
                     .map((issue, index) => (
                       <li key={`${issue.path}-${index}`}>
                         <div>
-                          <strong>{issue.label}</strong>
-                          <p>{issue.message}</p>
+                          <strong>{displayRequirementIssueLabel(issue)}</strong>
+                          <p>{displayRequirementIssue(issue)}</p>
                         </div>
                         <button
                           type="button"
                           className="text-button"
-                          aria-label={`去核对：${issue.label}`}
+                          aria-label={t(
+                            `去核对：${issue.label}`,
+                            `Review: ${displayRequirementIssueLabel(issue)}`,
+                          )}
                           onClick={() => goIssue(issue)}
                         >
-                          去核对
+                          {t("去核对")}
                         </button>
                       </li>
                     ))}
                 </ul>
                 <small>
-                  可以先保存，之后再补。这份清单不包含平台暂未支持的功能。
+                  {t(
+                    "可以先保存，之后再补。这份清单不包含平台暂未支持的功能。",
+                  )}
                 </small>
               </>
             ) : (
               <>
-                <strong>本步填写和核对已完成</strong>
+                <strong>{t("本步填写和核对已完成")}</strong>
                 <p>
-                  这只表示本步没有待填、待改或待核对项。还需到第 5
-                  步查看整份需求和执行范围。
+                  {t(
+                    "这只表示本步没有待填、待改或待核对项。还需到第 5 步查看整份需求和执行范围。",
+                  )}
                 </p>
               </>
             )}
@@ -1761,9 +1961,9 @@ function IntakeGuide({
             ) : (
               <FloppyDisk size={16} />
             )}
-            保存需求
+            {t("保存需求")}
           </button>
-          <small>空白项和未支持的动作都能保留</small>
+          <small>{t("空白项和未支持的动作都能保留")}</small>
         </div>
         <div className="guide-navigation">
           {step > 0 && (
@@ -1773,7 +1973,7 @@ function IntakeGuide({
               onClick={() => goStep(step - 1)}
             >
               <ArrowLeft size={15} />
-              上一步
+              {t("上一步")}
             </button>
           )}
           {step < 4 ? (
@@ -1782,7 +1982,7 @@ function IntakeGuide({
               disabled={locked || saving}
               onClick={() => goStep(step + 1)}
             >
-              下一步
+              {t("下一步")}
               <ArrowRight size={16} />
             </button>
           ) : (
@@ -1796,7 +1996,7 @@ function IntakeGuide({
               ) : (
                 <Check size={16} />
               )}
-              {isPublicDemo ? "预览分工与核对流程" : "让 AI 拆分"}
+              {isPublicDemo ? t("预览分工与核对流程") : t("让 AI 拆分")}
             </button>
           )}
         </div>

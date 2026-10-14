@@ -20,6 +20,12 @@ from .schemas import ProjectInput, GuidedDraftInput, parse_project_input, Approv
 from .store import Store, ACTIVE, now, uid
 from .structures import list_structures, get_structure, ingest_structure, attach_structure, MODEL_LIMIT
 from .workflow import default_workflow, validate_workflow
+from .foldbot_projects import FoldBotProjects, create_router as create_foldbot_projects_router
+from .foldbot_control import FoldBotController, create_foldbot_router
+from .foldbot_arbiter import FoldBotArbiter
+from .foldbot_console import FoldBotConsoleBridge, create_foldbot_console_router
+from .foldbot_flash import FoldBotFlashSessions, create_foldbot_flash_router
+from .hardware_workspace import create_router as create_hardware_workspace_router
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -94,16 +100,64 @@ def create_app(root: Path = ROOT):
     store = Store(root / '.tools' / 'workbench.sqlite3')
     settings = Settings(root)
     jobs = Jobs(root, store, settings.private)
+    foldbot_projects = FoldBotProjects(store, root)
+    def record_foldbot_event(event):
+        store.put('foldbot_control_event', {**event, 'id': uid(), 'created_at': now()})
+
+    foldbot_arbiter = FoldBotArbiter()
+    foldbot_control = FoldBotController(
+        require_current_generation=foldbot_projects.require_current_generation,
+        on_event=record_foldbot_event,
+        arbiter=foldbot_arbiter,
+    )
+    foldbot_console = FoldBotConsoleBridge(arbiter=foldbot_arbiter, on_event=record_foldbot_event)
+    foldbot_flash = FoldBotFlashSessions(
+        require_current_generation=foldbot_projects.require_current_generation,
+        arbiter=foldbot_arbiter, on_event=record_foldbot_event,
+    )
 
     @asynccontextmanager
     async def lifespan(app):
         store.recover()
-        yield
-        jobs.close()
+        try:
+            yield
+        finally:
+            try:
+                await foldbot_control.close()
+            finally:
+                try:
+                    await foldbot_console.close()
+                finally:
+                    try:
+                        await foldbot_flash.close()
+                    finally:
+                        jobs.close()
 
     app = FastAPI(title='Auto Engineering Local', version='0.4.0', lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=2000)
     app.state.store, app.state.jobs, app.state.settings = store, jobs, settings
+    app.state.foldbot_projects = foldbot_projects
+    app.state.foldbot_control = foldbot_control
+    app.state.foldbot_console = foldbot_console
+    app.state.foldbot_flash = foldbot_flash
+    app.include_router(create_foldbot_projects_router(store, root, projects=foldbot_projects))
+    app.include_router(create_foldbot_router(foldbot_control))
+    app.include_router(create_foldbot_console_router(foldbot_console))
+    app.include_router(create_foldbot_flash_router(foldbot_flash))
+    app.include_router(create_hardware_workspace_router(root, settings.private))
+
+    @app.get('/api/foldbot/console/events')
+    def foldbot_console_events():
+        return {'items': [item for item in store.list('foldbot_control_event')
+                          if item.get('mode') == 'console'][:100],
+                'physical_completion_verified': False}
+
+    @app.get('/api/foldbot/projects/{project_id}/control-events')
+    def foldbot_control_events(project_id: str):
+        foldbot_projects.get(project_id)
+        return {'items': [item for item in store.list('foldbot_control_event')
+                          if item.get('project_id') == project_id][:100],
+                'physical_completion_verified': False}
 
     @app.middleware('http')
     async def local_only(request: Request, call_next):

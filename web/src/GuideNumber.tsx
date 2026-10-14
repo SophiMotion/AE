@@ -1,3 +1,6 @@
+import { t } from "./localeStore";
+import { useI18n } from "./i18n";
+import "./i18nRequirements";
 import { useEffect, useId, useRef, useState } from "react";
 import { formatDisplayNumber, parseDisplayNumber } from "./intakeGuide";
 import { matchesNumberChoice, type NumberChoice } from "./intakeChoices";
@@ -24,6 +27,7 @@ export default function GuideNumber({
   choices?: NumberChoice[];
   onChange: (value: number | null) => void;
 }) {
+  useI18n();
   const inputId = useId();
   const [text, setText] = useState(() => formatDisplayNumber(value, unit));
   const emitted = useRef(value),
@@ -38,15 +42,15 @@ export default function GuideNumber({
   return (
     <div className="field guide-number-field">
       <label className="guide-number-label" htmlFor={inputId}>
-        {label}
-        <small>{suffix}</small>
+        {t(label)}
+        <small>{t(suffix)}</small>
       </label>
       {!!choices.length && (
         <>
           <div
             className="guide-choice-list numeric-choices"
             role="group"
-            aria-label={`${label}的选项`}
+            aria-label={t(`${label}的选项`, `Options for ${t(label)}`)}
           >
             {choices.map((choice) => (
               <button
@@ -62,22 +66,24 @@ export default function GuideNumber({
                 }}
               >
                 <span className="guide-choice-heading">
-                  <strong>{choice.label}</strong>
+                  <strong>{t(choice.label)}</strong>
                   {choice.recommended && (
-                    <small className="choice-recommended">推荐</small>
+                    <small className="choice-recommended">{t("推荐")}</small>
                   )}
                 </span>
                 <span className="guide-choice-description">
-                  {choice.description}
+                  {t(choice.description)}
                 </span>
                 {matchesNumberChoice(value, choice.value) && (
-                  <span className="choice-current">当前值</span>
+                  <span className="choice-current">{t("当前值")}</span>
                 )}
               </button>
             ))}
           </div>
           <small className="guide-choice-help">
-            可修改的本机草稿示例，点击后填入。也可以在下面直接输入自己的数值。
+            {t(
+              "可修改的本机草稿示例，点击后填入。也可以在下面直接输入自己的数值。",
+            )}
           </small>
         </>
       )}
@@ -85,7 +91,7 @@ export default function GuideNumber({
         id={inputId}
         type="text"
         inputMode="decimal"
-        aria-label={label}
+        aria-label={t(label)}
         disabled={disabled}
         value={text}
         onChange={(e) => {
@@ -94,19 +100,22 @@ export default function GuideNumber({
           emitted.current = next;
           onChange(next);
         }}
-        placeholder="待填写"
+        placeholder={t("待填写")}
       />
-      {hint && <small>{hint}</small>}
+      {hint && <small>{t(hint)}</small>}
       <small className="guide-value-source">
         {value === null
-          ? "还没确定"
+          ? t("还没确定")
           : source
-            ? source.label
+            ? t(source.label)
             : suggested
-              ? "已采用平台建议"
-              : "你填写的"}
+              ? t("已采用平台建议")
+              : t("你填写的")}
         {value !== null && unit === "deg"
-          ? ` · 程序值 ${Number(value.toPrecision(8))} rad${suffix.endsWith("/s") ? "/s" : ""}`
+          ? t(
+              ` · 程序值 ${Number(value.toPrecision(8))} rad${suffix.endsWith("/s") ? "/s" : ""}`,
+              ` · Program value ${Number(value.toPrecision(8))} rad${suffix.endsWith("/s") ? "/s" : ""}`,
+            )
           : ""}
       </small>
       {source && (

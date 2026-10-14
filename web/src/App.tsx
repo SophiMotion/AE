@@ -1,6 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useI18n } from "./i18n";
+import { t } from "./localeStore";
+import { coreErrorText } from "./i18nCore";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowClockwise,
+  Books,
   CaretRight,
   CheckCircle,
   CircleNotch,
@@ -8,6 +19,7 @@ import {
   FileText,
   Folder,
   GearSix,
+  House,
   Info,
   LinkSimple,
   List,
@@ -46,12 +58,65 @@ import ProjectTools from "./ProjectTools";
 import { invalidateMotionReview } from "./motionPlan";
 import { isPublicDemo } from "./api";
 import { downloadDraft } from "./demoDownload";
-type Page = "workbench" | "library" | "settings";
+import FoldBotWorkbench from "./FoldBotWorkbench";
+import FoldBotConsole from "./FoldBotConsole";
+import type { HardwareProgram } from "./hardwareProgram";
+const HardwareWorkspace = lazy(() => import("./HardwareWorkspace"));
+type Page =
+  | "workbench"
+  | "hardware"
+  | "foldbot"
+  | "foldbot-console"
+  | "library"
+  | "settings";
 export default function App() {
-  const [page, setPage] = useState<Page>("workbench");
+  const { locale, setLocale } = useI18n();
+
+  const [flashBusy, setFlashBusy] = useState(false);
+  const flashBusyRef = useRef(false);
+  useEffect(() => {
+    const receive = (event: Event) => {
+      flashBusyRef.current = (event as CustomEvent).detail?.busy === true;
+      setFlashBusy(flashBusyRef.current);
+    };
+    window.addEventListener("ae-foldbot-flash-busy", receive);
+    return () => window.removeEventListener("ae-foldbot-flash-busy", receive);
+  }, []);
+  const [page, setPage] = useState<Page>(() =>
+    window.location.hash === "#foldbot-console"
+      ? "foldbot-console"
+      : window.location.hash === "#foldbot"
+        ? "foldbot"
+        : window.location.hash === "#hardware"
+          ? "hardware"
+          : "foldbot",
+  );
+  useEffect(() => {
+    const navigateByHash = () => {
+      if (flashBusyRef.current) {
+        window.history.replaceState(null, "", "#foldbot");
+        return;
+      }
+      const hash = window.location.hash;
+      if (
+        hash === "#hardware" ||
+        hash === "#foldbot" ||
+        hash === "#foldbot-console"
+      ) {
+        setPage(hash.slice(1) as Page);
+      } else if (!hash || hash === "#workbench") setPage("foldbot");
+    };
+    window.addEventListener("hashchange", navigateByHash);
+    return () => window.removeEventListener("hashchange", navigateByHash);
+  }, []);
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [draft, setDraft] = useState<Draft>(newDraft);
+  // Uninserted dictation stays with its project across wizard steps and saves.
+  // It is never included in API payloads, exported PRDs or execution inputs.
+  const [speechRemainders, setSpeechRemainders] = useState<
+    Record<string, string>
+  >({});
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [environment, setEnvironment] = useState<Record<
     string,
@@ -67,17 +132,68 @@ export default function App() {
   const [run, setRun] = useState<Run | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
   const [sidebar, setSidebar] = useState(false);
+  const [mobileNavigation, setMobileNavigation] = useState(
+    () => window.matchMedia("(max-width: 760px)").matches,
+  );
+  const sidebarRef = useRef<HTMLElement>(null);
+  const sidebarTriggerRef = useRef<HTMLButtonElement>(null);
+  const sidebarCloseRef = useRef<HTMLButtonElement>(null);
   const [projectTools, setProjectTools] = useState<"history" | "import" | null>(
     null,
   );
   const selectionVersion = useRef(0);
+  const speechScope = project?.id ?? `draft-${selectionVersion.current}`;
   const refreshVersion = useRef(0);
   const locked = !!project && busyStatuses.includes(project.status);
   const dirty = draftIsChanged(draft, project);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const updateNavigation = () => {
+      setMobileNavigation(media.matches);
+      if (!media.matches) setSidebar(false);
+    };
+    media.addEventListener("change", updateNavigation);
+    return () => media.removeEventListener("change", updateNavigation);
+  }, []);
+  useEffect(() => {
+    if (!sidebar || !mobileNavigation) return;
+    sidebarCloseRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSidebar(false);
+      } else if (event.key === "Tab") {
+        const controls = Array.from(
+          sidebarRef.current?.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), a[href], [tabindex="0"]',
+          ) || [],
+        ).filter((control) => control.getClientRects().length > 0);
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      if (sidebarTriggerRef.current?.getClientRects().length)
+        sidebarTriggerRef.current.focus();
+    };
+  }, [sidebar, mobileNavigation]);
   const loadRuns = useCallback(async (p: Project, version: number) => {
     const data = await api<{ items: Run[] }>(`/projects/${p.id}/runs`);
     if (selectionVersion.current !== version) return;
-    setRuns(isPublicDemo ? data.items.filter((item) => item.project_id === p.id) : data.items);
+    setRuns(
+      isPublicDemo
+        ? data.items.filter((item) => item.project_id === p.id)
+        : data.items,
+    );
     const active = p.latest_run_id
       ? await api<Run>(`/runs/${p.latest_run_id}`)
       : null;
@@ -85,18 +201,19 @@ export default function App() {
       setRun(isPublicDemo && active?.project_id !== p.id ? null : active);
   }, []);
   const selectProject = useCallback(
-    async (p: Project) => {
+    async (p: Project, showWorkspace = true) => {
       const version = ++selectionVersion.current;
       setProject(p);
       setDraft(fromProject(p));
       setRun(null);
       setRuns([]);
       setStage(p.status === "awaiting_approval" ? 1 : p.latest_run_id ? 3 : 0);
-      setPage("workbench");
+      if (showWorkspace) setPage("workbench");
       setSidebar(false);
       setError("");
       setProjectTools(null);
       const currentUrl = new URL(window.location.href);
+      if (showWorkspace) currentUrl.hash = "";
       currentUrl.searchParams.set("project", p.id);
       window.history.replaceState(null, "", currentUrl);
       try {
@@ -132,6 +249,7 @@ export default function App() {
         await selectProject(
           all.items.find((item) => item.id === requestedProject) ||
             all.items[0],
+          false,
         );
       } else
         setDraft({
@@ -143,7 +261,9 @@ export default function App() {
     } catch (e) {
       if (refreshId !== refreshVersion.current) return;
       setConnected(false);
-      setError(`${isPublicDemo ? "分享版资源读取失败" : "无法连接本机后台"}：${(e as Error).message}`);
+      setError(
+        `${isPublicDemo ? "分享版资源读取失败" : "无法连接本机后台"}：${(e as Error).message}`,
+      );
     } finally {
       if (refreshId === refreshVersion.current) setLoading(false);
     }
@@ -227,6 +347,12 @@ export default function App() {
       draft,
       project ? "PUT" : "POST",
     );
+    setSpeechRemainders((current) => {
+      if (!current[speechScope] || speechScope === next.id) return current;
+      const moved = { ...current, [next.id]: current[speechScope] };
+      delete moved[speechScope];
+      return moved;
+    });
     updateProject(next);
     setRun(null);
     if (isPublicDemo) setRuns([]);
@@ -246,21 +372,30 @@ export default function App() {
   const save = () =>
     action(async () => {
       await persist();
-      setToast(isPublicDemo ? "草稿已保存在此浏览器。已有验收结果不会套用到新需求。" : "需求已保存。修改后的规格需要重新核对。");
+      setToast(
+        isPublicDemo
+          ? "草稿已保存在此浏览器。已有验收结果不会套用到新需求。"
+          : "需求已保存。修改后的规格需要重新核对。",
+      );
     });
   const plan = () =>
     action(async () => {
       const current = dirty ? await persist() : project!;
       const next = await api<Project>(`/projects/${current.id}/plan`, {});
       updateProject(next);
-      if (isPublicDemo) { setRun(null); setRuns([]); }
+      if (isPublicDemo) {
+        setRun(null);
+        setRuns([]);
+      }
       setStage(1);
     });
   const approve = () =>
     action(async () => {
       if (isPublicDemo) {
         setStage(2);
-        setToast("已进入流程说明。在线分享版不调用 AI、不生成代码，也不运行 ROS。");
+        setToast(
+          "已进入流程说明。在线分享版不调用 AI、不生成代码，也不运行 ROS。",
+        );
         return;
       }
       if (!project) return;
@@ -290,7 +425,10 @@ export default function App() {
     });
   const repair = () =>
     action(async () => {
-      if (isPublicDemo) throw new Error("修改和重新运行需要启动完整本机平台。这里展示已有验收记录。");
+      if (isPublicDemo)
+        throw new Error(
+          "修改和重新运行需要启动完整本机平台。这里展示已有验收记录。",
+        );
       if (!run) return;
       if (dirty)
         throw new Error(
@@ -317,7 +455,10 @@ export default function App() {
     });
   const deploy = () =>
     action(async () => {
-      if (isPublicDemo) throw new Error("分享版没有 ROS 执行环境，部署复测需要在完整本机平台进行。");
+      if (isPublicDemo)
+        throw new Error(
+          "分享版没有 ROS 执行环境，部署复测需要在完整本机平台进行。",
+        );
       if (!run) return;
       if (dirty)
         throw new Error(
@@ -354,57 +495,214 @@ export default function App() {
     setError("");
     setSidebar(false);
   };
+  const useHardwareRequirements = (program: HardwareProgram) => {
+    if (program.request.length > 4000) {
+      setError(
+        t(
+          "PRD 需求最多 4000 字，请先缩短硬件需求；完整积木配置仍保存在硬件工作区。",
+          "PRD requests support up to 4,000 characters. Shorten the request first; the full block configuration stays in Hardware Studio.",
+        ),
+      );
+      return;
+    }
+    if (
+      dirty &&
+      (draft.request || draft.name) &&
+      !window.confirm(
+        t(
+          "当前工作台有未保存的需求，是否用硬件需求新建草稿？已有保存工程不会被修改。",
+          "There is an unsaved workbench draft. Create a new draft from Hardware Studio? Saved projects will stay unchanged.",
+        ),
+      )
+    )
+      return;
+    const next = newDraft();
+    next.name = program.name;
+    next.request =
+      program.request ||
+      t(
+        "根据硬件工作区的积木方案，整理嵌入式工程需求。",
+        "Define an embedded project from the Hardware Studio block design.",
+      );
+    next.task_type = null;
+    next.hardware.board = program.board;
+    next.prd.use_case = program.name;
+    next.prd.constraints = [
+      t(
+        "来源：硬件开发工作区；完整配置可在那里导出 config.json。这里只带入配置摘要，需要按任务核对 ROS 与固件方案。",
+        "Source: Hardware Studio. Export the complete config.json there. This summary still requires ROS and firmware task review.",
+      ),
+      `Board: ${program.board}; Serial: 115200; Setup: ${program.setup.length}; Loop: ${program.loop.length}`,
+      ...program.bindings.map(
+        (binding) =>
+          `${binding.id} (${binding.label}): GPIO ${binding.pin ?? "?"}`,
+      ),
+      t(
+        "目前仅生成源码，未编译、烧录或实物测试。",
+        "Source only; not built, flashed or tested on hardware.",
+      ),
+    ].join("\n");
+    next.workflow = structuredClone(catalog?.default_workflow ?? next.workflow);
+    selectionVersion.current += 1;
+    setProject(null);
+    setRun(null);
+    setRuns([]);
+    setProjectTools(null);
+    setDraft(next);
+    setStage(0);
+    setPage("workbench");
+    setError("");
+    setSidebar(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("project");
+    url.hash = "";
+    window.history.replaceState(null, "", url);
+    setToast(
+      t(
+        "已带入新 PRD 草稿，请继续确认动作类型和工程要求。",
+        "New PRD draft ready. Review its task type and engineering requirements.",
+      ),
+    );
+  };
   const selectedStatus = project?.status || "draft";
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        {t("跳至主要内容")}
+      </a>
       <header className="app-header">
         <button
+          style={
+            page !== "workbench" && page !== "hardware"
+              ? { display: "none" }
+              : undefined
+          }
+          ref={sidebarTriggerRef}
+          type="button"
           className="icon-button mobile-menu"
           onClick={() => setSidebar(!sidebar)}
-          aria-label="打开工程列表"
+          aria-label={sidebar ? t("关闭工程列表") : t("打开工程列表")}
+          aria-expanded={sidebar}
+          aria-controls="project-sidebar"
         >
-          <List size={23} />
+          <List size={23} aria-hidden="true" />
         </button>
         <a
           className="brand"
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            setPage("workbench");
+            if (!flashBusyRef.current) {
+              setPage("foldbot");
+              window.history.replaceState(null, "", "#foldbot");
+            }
           }}
         >
           <strong>AE</strong>
           <span>/</span>
           <b>Auto Engineering</b>
         </a>
-        <nav aria-label="主导航">
+        <nav aria-label={t("主导航")}>
           {(
             [
-              { id: "workbench", label: "工作台" },
+              { id: "foldbot", label: "工作台" },
               { id: "library", label: "资料库" },
               { id: "settings", label: "设置" },
             ] as { id: Page; label: string }[]
           ).map((item) => (
             <button
               key={item.id}
-              onClick={() => setPage(item.id)}
-              className={page === item.id ? "active" : ""}
+              disabled={flashBusy}
+              onClick={() => {
+                setPage(item.id);
+                const url = new URL(window.location.href);
+                url.hash =
+                  item.id === "foldbot" || item.id === "hardware"
+                    ? item.id
+                    : "";
+                window.history.replaceState(null, "", url);
+                setSidebar(false);
+              }}
+              className={
+                page === item.id ||
+                (page === "foldbot-console" && item.id === "foldbot")
+                  ? "active"
+                  : ""
+              }
+              aria-current={
+                page === item.id ||
+                (page === "foldbot-console" && item.id === "foldbot")
+                  ? "page"
+                  : undefined
+              }
             >
-              {item.label}
+              {item.id === "workbench" ? (
+                <House size={18} aria-hidden="true" />
+              ) : item.id === "foldbot" ? (
+                <Robot size={18} aria-hidden="true" />
+              ) : item.id === "hardware" ? (
+                <Cpu size={18} aria-hidden="true" />
+              ) : item.id === "library" ? (
+                <Books size={18} aria-hidden="true" />
+              ) : (
+                <GearSix size={18} aria-hidden="true" />
+              )}
+              <span>
+                {item.id === "foldbot"
+                  ? t("工作台", "Workbench")
+                  : item.id === "hardware"
+                    ? t("硬件开发", "Hardware")
+                    : t(item.label)}
+              </span>
             </button>
           ))}
         </nav>
         <div className={`connection ${connected ? "online" : ""}`}>
           <span />
-          {isPublicDemo ? "完整界面体验版" : connected ? "本机服务已连接" : "本机服务未连接"}
+          {isPublicDemo
+            ? t("完整界面体验版")
+            : connected
+              ? t("本机服务已连接")
+              : t("本机服务未连接")}
         </div>
+        <label className="language-switch">
+          <span className="sr-only">{t("界面语言", "Interface language")}</span>
+          <select
+            aria-label={t("界面语言", "Interface language")}
+            value={locale}
+            onChange={(event) =>
+              setLocale(event.target.value === "en" ? "en" : "zh-CN")
+            }
+          >
+            <option value="zh-CN" lang="zh-CN">
+              中文
+            </option>
+            <option value="en" lang="en">
+              English
+            </option>
+          </select>
+        </label>
       </header>
-      <aside className={`sidebar ${sidebar ? "open" : ""}`}>
+      <aside
+        style={
+          page !== "workbench" && page !== "hardware"
+            ? { display: "none" }
+            : undefined
+        }
+        id="project-sidebar"
+        ref={sidebarRef}
+        className={`sidebar ${sidebar ? "open" : ""}`}
+        aria-label={t("工程列表")}
+        aria-hidden={mobileNavigation && !sidebar ? true : undefined}
+        inert={mobileNavigation && !sidebar}
+      >
         <div className="sidebar-title">
-          <span>工程</span>
+          <span>{t("工程")}</span>
           <button
+            ref={sidebarCloseRef}
+            type="button"
             className="icon-button mobile-menu"
-            aria-label="关闭工程列表"
+            aria-label={t("关闭工程列表")}
             onClick={() => setSidebar(false)}
           >
             <X size={18} />
@@ -416,19 +714,23 @@ export default function App() {
           disabled={loading || busy}
         >
           <Plus size={19} />
-          新建任务
+          {t("新建任务")}
         </button>
         <button
           className="text-button sidebar-import"
           disabled={loading || busy}
           onClick={() => {
-            if (isPublicDemo) { downloadDraft(draft); setToast("已下载当前需求草稿；这不是生成后的 ROS／ESP32 工程。"); return; }
+            if (isPublicDemo) {
+              downloadDraft(draft);
+              setToast("已下载当前需求草稿；这不是生成后的 ROS／ESP32 工程。");
+              return;
+            }
             setPage("workbench");
             setProjectTools("import");
             setSidebar(false);
           }}
         >
-          {isPublicDemo ? "下载当前需求草稿" : "导入工程 ZIP"}
+          {isPublicDemo ? t("下载当前需求草稿") : t("导入工程 ZIP")}
         </button>
         <div className="project-list">
           {projects.map((item) => (
@@ -436,55 +738,117 @@ export default function App() {
               key={item.id}
               disabled={loading || busy}
               className={project?.id === item.id ? "selected" : ""}
+              aria-current={project?.id === item.id ? "true" : undefined}
               onClick={() => void selectProject(item)}
             >
               <Robot size={20} />
               <span>
-                <strong>{item.name || "未命名需求"}</strong>
-                <small>{isPublicDemo && item.latest_run_id ? "已有本机验收示例" : statusLabels[item.status] || item.status}</small>
+                <strong>{item.name || t("未命名需求")}</strong>
+                <small>
+                  {isPublicDemo && item.latest_run_id
+                    ? t("已有本机验收示例")
+                    : t(statusLabels[item.status] || item.status)}
+                </small>
               </span>
               <CaretRight size={14} />
             </button>
           ))}
           {!projects.length && (
-            <p className="sidebar-empty">创建第一个工程，从需求开始。</p>
+            <p className="sidebar-empty">{t("创建第一个工程，从需求开始。")}</p>
           )}
         </div>
         <div className="sidebar-bottom">
           <Folder size={17} />
-          <span>{isPublicDemo ? "草稿仅保存在你的浏览器" : "所有运行记录保存在本机"}</span>
+          <span>
+            {isPublicDemo
+              ? t("草稿仅保存在你的浏览器")
+              : t("所有运行记录保存在本机")}
+          </span>
         </div>
       </aside>
       {sidebar && (
         <button
           className="sidebar-overlay"
-          aria-label="关闭工程列表"
+          aria-label={t("关闭工程列表")}
+          tabIndex={-1}
           onClick={() => setSidebar(false)}
         />
       )}
-      <main className={`main ${page !== "workbench" ? "secondary-page" : ""}`}>
-        {isPublicDemo && <div className="public-demo-notice" role="note">
-          <div><strong>完整工作台 · 分享体验版</strong><p>可填写 PRD、查看流程、旋转模型和回放已有结果。生成、编译与 ROS 运行需要完整本机平台；新草稿没有验收结果。</p></div>
-          <a className="button secondary" href="./guide.html">项目说明</a>
-          <a className="text-button" href="https://github.com/SophiMotion/AE" target="_blank" rel="noreferrer">项目源码</a>
-        </div>}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={`main ${page !== "workbench" ? "secondary-page" : ""} ${page !== "workbench" && page !== "hardware" ? "foldflow-main" : ""}`}
+      >
+        {isPublicDemo && (
+          <div className="public-demo-notice" role="note">
+            <div>
+              <strong>{t("完整工作台 · 分享体验版")}</strong>
+              <p>
+                {t(
+                  "可填写 PRD、查看流程、旋转模型和回放已有结果。生成、编译与 ROS 运行需要完整本机平台；新草稿没有验收结果。",
+                )}
+              </p>
+            </div>
+            <a className="button secondary" href="./guide.html">
+              {t("项目说明")}
+            </a>
+            <a
+              className="text-button"
+              href="https://github.com/SophiMotion/AE"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t("项目源码")}
+            </a>
+          </div>
+        )}
         {error && (
           <div className="error-banner" role="alert">
             <WarningCircle size={20} />
-            <span>{error}</span>
+            <span>{coreErrorText(error)}</span>
             <button
               className="icon-button"
-              aria-label="关闭提示"
+              aria-label={t("关闭提示")}
               onClick={() => setError("")}
             >
               <X size={17} />
             </button>
           </div>
         )}
-        {loading ? (
+        {page === "hardware" ? (
+          <Suspense
+            fallback={
+              <div className="initial-loader">
+                <CircleNotch size={30} className="spin" />
+              </div>
+            }
+          >
+            <HardwareWorkspace
+              onUseRequirements={useHardwareRequirements}
+              onFoldBot={(console) => {
+                const destination = console ? "foldbot-console" : "foldbot";
+                setPage(destination);
+                window.history.replaceState(null, "", `#${destination}`);
+              }}
+            />
+          </Suspense>
+        ) : page === "foldbot-console" ? (
+          <FoldBotConsole
+            onBack={() => {
+              setPage("foldbot");
+              window.history.replaceState(null, "", "#foldbot");
+            }}
+          />
+        ) : page === "foldbot" ? (
+          <FoldBotWorkbench />
+        ) : loading ? (
           <div className="initial-loader">
             <CircleNotch size={30} className="spin" />
-            <p>{isPublicDemo ? "正在读取公开示例与工作台" : "正在连接本机工程服务"}</p>
+            <p>
+              {isPublicDemo
+                ? t("正在读取公开示例与工作台")
+                : t("正在连接本机工程服务")}
+            </p>
           </div>
         ) : page === "settings" ? (
           <Settings settings={settings} onSaved={setSettings} />
@@ -494,11 +858,17 @@ export default function App() {
           <>
             <header className="page-heading">
               <div>
-                <h1>{project?.name || draft.name || "新建工程"}</h1>
+                <h1>{project?.name || draft.name || t("新建工程")}</h1>
                 <p>
-                  ROS 2 Humble <span>·</span> {isPublicDemo ? project?.latest_run_id ? "已有本机记录" : "浏览器需求草稿" : "本地模拟设备"} <span>·</span>{" "}
+                  ROS 2 Humble <span>·</span>{" "}
+                  {isPublicDemo
+                    ? project?.latest_run_id
+                      ? t("已有本机记录")
+                      : t("浏览器需求草稿")
+                    : t("本地模拟设备")}{" "}
+                  <span>·</span>{" "}
                   <span className={`status ${selectedStatus}`}>
-                    {statusLabels[selectedStatus]}
+                    {t(statusLabels[selectedStatus])}
                   </span>
                   {project && (
                     <span className="revision">v{project.spec_revision}</span>
@@ -516,17 +886,24 @@ export default function App() {
                     }
                     disabled={busy}
                   >
-                    版本与复用
+                    {t("版本与复用")}
                   </button>
                 )}
-                {isPublicDemo && <button className="button secondary" onClick={() => downloadDraft(draft)}>下载 PRD 草稿</button>}
+                {isPublicDemo && (
+                  <button
+                    className="button secondary"
+                    onClick={() => downloadDraft(draft)}
+                  >
+                    {t("下载 PRD 草稿")}
+                  </button>
+                )}
                 {!connected && (
                   <button
                     className="button secondary"
                     onClick={() => void refresh()}
                   >
                     <ArrowClockwise size={17} />
-                    重新连接
+                    {t("重新连接")}
                   </button>
                 )}
                 {locked && (
@@ -536,7 +913,7 @@ export default function App() {
                     disabled={busy}
                   >
                     <Square size={14} />
-                    取消执行
+                    {t("取消执行")}
                   </button>
                 )}
                 <button
@@ -545,7 +922,7 @@ export default function App() {
                   disabled={busy}
                 >
                   <ArrowClockwise size={17} />
-                  {project?.plan ? "修改需求" : "编辑需求"}
+                  {project?.plan ? t("修改需求") : t("编辑需求")}
                 </button>
               </div>
             </header>
@@ -579,6 +956,15 @@ export default function App() {
                 {stage === 0 ? (
                   <Requirements
                     key={selectionVersion.current}
+                    speechOverflow={speechRemainders[speechScope] || ""}
+                    onSpeechOverflowChange={(text) =>
+                      setSpeechRemainders((current) => {
+                        const next = { ...current };
+                        if (text) next[speechScope] = text;
+                        else delete next[speechScope];
+                        return next;
+                      })
+                    }
                     draft={draft}
                     manifest={project?.manifest}
                     manifestStale={dirty}
@@ -632,8 +1018,14 @@ export default function App() {
                     <header className="panel-heading">
                       <FileText size={24} />
                       <div>
-                        <h2>程序生成</h2>
-                        <p>{isPublicDemo ? "查看两端工程如何配套；这一步的实际生成在本机完成。" : "同一份需求和通信约定，生成两端工程。"}</p>
+                        <h2>{t("程序生成")}</h2>
+                        <p>
+                          {isPublicDemo
+                            ? t(
+                                "查看两端工程如何配套；这一步的实际生成在本机完成。",
+                              )
+                            : t("同一份需求和通信约定，生成两端工程。")}
+                        </p>
                       </div>
                     </header>
                     <div className="generation-status">
@@ -645,23 +1037,39 @@ export default function App() {
                       ) : (
                         <FileText size={38} />
                       )}
-                      <h3>{isPublicDemo ? run ? "已有示例的两端程序" : "生成流程说明" : statusLabels[selectedStatus]}</h3>
+                      <h3>
+                        {isPublicDemo
+                          ? run
+                            ? t("已有示例的两端程序")
+                            : t("生成流程说明")
+                          : t(statusLabels[selectedStatus])}
+                      </h3>
                       <p>
-                        {isPublicDemo ? "完整平台在人工核对后，按冻结的需求与通信约定生成 ROS 工程和 ESP32 固件。当前网页不会启动生成、编译或仿真。" : project?.approval
-                          ? "已确认的规格会随本轮工程保存，日志与文件在下方查看。"
-                          : "先到“环境与检查”人工核对拆分结果。"}
+                        {isPublicDemo
+                          ? t(
+                              "完整平台在人工核对后，按冻结的需求与通信约定生成 ROS 工程和 ESP32 固件。当前网页不会启动生成、编译或仿真。",
+                            )
+                          : project?.approval
+                            ? t(
+                                "已确认的规格会随本轮工程保存，日志与文件在下方查看。",
+                              )
+                            : t("先到“环境与检查”人工核对拆分结果。")}
                       </p>
                     </div>
                     <div className="two-lanes">
                       <div>
                         <Robot size={24} />
-                        <h3>ROS 端</h3>
-                        <p>任务程序、启动文件、参数与检查脚本</p>
+                        <h3>{t("ROS 端")}</h3>
+                        <p>{t("任务程序、启动文件、参数与检查脚本")}</p>
                       </div>
                       <div>
                         <Cpu size={24} />
-                        <h3>ESP32 端</h3>
-                        <p>按所选板型编译固件；通信逻辑在主机模拟环境中检查</p>
+                        <h3>{t("ESP32 端")}</h3>
+                        <p>
+                          {t(
+                            "按所选板型编译固件；通信逻辑在主机模拟环境中检查",
+                          )}
+                        </p>
                       </div>
                     </div>
                     {run?.error && (
@@ -672,7 +1080,7 @@ export default function App() {
                         className="button secondary"
                         onClick={() => setStage(1)}
                       >
-                        去核对需求
+                        {t("去核对需求")}
                         <CaretRight size={16} />
                       </button>
                     )}
@@ -693,100 +1101,115 @@ export default function App() {
                 <header className="panel-heading">
                   <FileText size={23} />
                   <div>
-                    <h2>本次工程</h2>
-                    <p>需求、运行环境与版本</p>
+                    <h2>{t("本次工程")}</h2>
+                    <p>{t("需求、运行环境与版本")}</p>
                   </div>
                 </header>
                 <dl>
                   <div>
                     <dt>
                       <Robot size={19} />
-                      ROS 端
+                      {t("ROS 端")}
                     </dt>
                     <dd>
                       {run &&
                       run.spec_snapshot?.spec_revision !==
                         project?.spec_revision
-                        ? "当前版未运行"
+                        ? t("当前版未运行")
                         : run?.result?.ros_verified
-                          ? "已运行验证"
+                          ? t("已运行验证")
                           : run
-                            ? "查看运行记录"
-                            : "待生成"}
+                            ? t("查看运行记录")
+                            : t("待生成")}
                     </dd>
                   </div>
                   <div>
                     <dt>
                       <Cpu size={19} />
-                      ESP32 端
+                      {t("ESP32 端")}
                     </dt>
                     <dd>
                       {run &&
                       run.spec_snapshot?.spec_revision ===
                         project?.spec_revision &&
                       run.result?.firmware?.passed
-                        ? "固件编译通过"
-                        : "待编译 / 查看记录"}
+                        ? t("固件编译通过")
+                        : t("待编译 / 查看记录")}
                     </dd>
                   </div>
                   <div>
                     <dt>
                       <LinkSimple size={19} />
-                      通信约定
+                      {t("通信约定")}
                     </dt>
                     <dd>
                       {project?.approval
-                        ? "已核对"
+                        ? t("已核对")
                         : project?.plan
-                          ? "待核对"
-                          : "待生成"}
+                          ? t("待核对")
+                          : t("待生成")}
                     </dd>
                   </div>
                   <div>
                     <dt>
                       <Monitor size={19} />
-                      运行环境
+                      {t("运行环境")}
                     </dt>
-                    <dd>{isPublicDemo ? "公开记录 / 浏览器体验" : connected ? "本机 ROS 2 Humble" : "等待连接"}</dd>
+                    <dd>
+                      {isPublicDemo
+                        ? t("公开记录 / 浏览器体验")
+                        : connected
+                          ? t("本机 ROS 2 Humble")
+                          : t("等待连接")}
+                    </dd>
                   </div>
                 </dl>
                 <div className="notice">
                   <Info size={19} />
-                  <span>{isPublicDemo ? "核对体验只改变浏览器草稿，不会生成、编译或刷新已有结果。" : "人工核对拆分结果后，才会生成和编译。"}</span>
+                  <span>
+                    {isPublicDemo
+                      ? t(
+                          "核对体验只改变浏览器草稿，不会生成、编译或刷新已有结果。",
+                        )
+                      : t("人工核对拆分结果后，才会生成和编译。")}
+                  </span>
                 </div>
                 <div className="info-detail">
-                  <span>实物与控制板烧录</span>
-                  <strong>本轮不执行</strong>
+                  <span>{t("实物与控制板烧录")}</span>
+                  <strong>{t("本轮不执行")}</strong>
                 </div>
                 {project && (
                   <div className="info-detail">
-                    <span>保存于</span>
+                    <span>{t("保存于")}</span>
                     <strong>{localTime(project.updated_at)}</strong>
                   </div>
                 )}
                 {!!runs.length && (
                   <label className="field run-selector">
-                    <span>查看历史运行</span>
+                    <span>{t("查看历史运行")}</span>
                     <select
                       value={run?.id || ""}
                       onChange={(e) => {
                         const selected = runs.find(
                           (r) => r.id === e.target.value,
                         );
-                        if (selected && (!isPublicDemo || selected.project_id === project?.id)) {
+                        if (
+                          selected &&
+                          (!isPublicDemo || selected.project_id === project?.id)
+                        ) {
                           setRun(selected);
                           setStage(3);
                         }
                       }}
                     >
                       <option value="" disabled>
-                        选择已保存的运行
+                        {t("选择已保存的运行")}
                       </option>
                       {runs.map((item) => (
                         <option value={item.id} key={item.id}>
                           {localTime(item.created_at)} · v
                           {item.spec_snapshot?.spec_revision} ·{" "}
-                          {statusLabels[item.status]}
+                          {t(statusLabels[item.status])}
                         </option>
                       ))}
                     </select>
@@ -798,7 +1221,11 @@ export default function App() {
                 >
                   <GearSix size={16} />
                   AI：
-                  {isPublicDemo ? "分享版不调用" : settings?.provider === "codex" ? "本机 Codex" : "API 服务"}
+                  {isPublicDemo
+                    ? t("分享版不调用")
+                    : settings?.provider === "codex"
+                      ? t("本机 Codex")
+                      : t("API 服务")}
                   <CaretRight size={14} />
                 </button>
               </aside>
@@ -822,7 +1249,7 @@ export default function App() {
       {toast && (
         <div className="toast" role="status">
           <CheckCircle size={19} />
-          {toast}
+          {t(toast)}
         </div>
       )}
     </div>

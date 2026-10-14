@@ -1,3 +1,6 @@
+import { useI18n } from "./i18n";
+import { t } from "./localeStore";
+import "./i18nCore";
 import { useMemo, useState } from "react";
 import {
   ReactFlow,
@@ -27,11 +30,15 @@ import {
 } from "./workflowModel";
 type ProcessNode = Node<{ label: string; gate: boolean }, "process">;
 function Process({ data }: NodeProps<ProcessNode>) {
+  const { locale } = useI18n();
+
   return (
     <div className={`process-node ${data.gate ? "review-gate" : ""}`}>
       <Handle type="target" position={Position.Left} />
       <strong>{data.label}</strong>
-      <small>{data.gate ? "核对通过才能继续" : "固定步骤 · 可拖动位置"}</small>
+      <small>
+        {data.gate ? t("核对通过才能继续") : t("固定步骤 · 可拖动位置")}
+      </small>
       <Handle type="source" position={Position.Right} />
     </div>
   );
@@ -48,11 +55,22 @@ export default function WorkflowEditor({
   locked: boolean;
   defaultValue?: EngineeringWorkflow;
 }) {
+  const { locale } = useI18n();
+
   const [expanded, setExpanded] = useState(false);
   const [serverMessage, setServerMessage] = useState("");
   const [checking, setChecking] = useState(false);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
   const validation = validateWorkflow(value);
+  const dependencyError = validation.error.match(
+    /^“(.+)”之前必须完成“(.+)”，请补好连线。$/,
+  );
+  const displayedError = dependencyError
+    ? t(
+        validation.error,
+        `Complete “${t(dependencyError[2])}” before “${t(dependencyError[1])}”. Add the required connections.`,
+      )
+    : t(validation.error);
   const order = validation.order;
   const nodes = useMemo<ProcessNode[]>(
     () =>
@@ -60,10 +78,10 @@ export default function WorkflowEditor({
         id: n.id,
         type: "process",
         position: n.position,
-        data: { label: stepLabels[n.type], gate: n.type === "review" },
+        data: { label: t(stepLabels[n.type]), gate: n.type === "review" },
         deletable: false,
       })),
-    [value.nodes],
+    [value.nodes, locale],
   );
   const edges = useMemo<Edge[]>(
     () =>
@@ -72,9 +90,18 @@ export default function WorkflowEditor({
         id: e.id || `${e.source}-${e.target}-${i}`,
         selected: selectedEdge === (e.id || `${e.source}-${e.target}-${i}`),
         type: "smoothstep",
-        markerEnd: { type: MarkerType.ArrowClosed, color: "#ec563a" },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color:
+            selectedEdge === (e.id || `${e.source}-${e.target}-${i}`)
+              ? "#002fa7"
+              : "#4285f4",
+        },
         style: {
-          stroke: "#ec563a",
+          stroke:
+            selectedEdge === (e.id || `${e.source}-${e.target}-${i}`)
+              ? "#002fa7"
+              : "#4285f4",
           strokeWidth:
             selectedEdge === (e.id || `${e.source}-${e.target}-${i}`) ? 3 : 1.4,
         },
@@ -94,7 +121,11 @@ export default function WorkflowEditor({
         value,
       );
       onChange(response.workflow);
-      setServerMessage(isPublicDemo ? "浏览器连线检查通过；这只检查流程图，不会执行任务。" : "后台检查通过。保存后，执行程序会按这份连线安排顺序。");
+      setServerMessage(
+        isPublicDemo
+          ? "浏览器连线检查通过；这只检查流程图，不会执行任务。"
+          : "后台检查通过。保存后，执行程序会按这份连线安排顺序。",
+      );
     } catch (e) {
       setServerMessage((e as Error).message);
     } finally {
@@ -106,16 +137,17 @@ export default function WorkflowEditor({
       <div className="section-intro">
         <div>
           <h3>
-            <FlowArrow size={18} /> 工程流程
+            <FlowArrow size={18} />
+            {t("工程流程")}
           </h3>
-          <p>连线决定先后，拖动只改变位置。审核和必要检查不能跳过。</p>
+          <p>{t("连线决定先后，拖动只改变位置。审核和必要检查不能跳过。")}</p>
         </div>
         <button
           type="button"
           className="button secondary"
           onClick={() => setExpanded(!expanded)}
         >
-          {expanded ? "收起流程图" : "编辑流程图"}
+          {expanded ? t("收起流程图") : t("编辑流程图")}
         </button>
       </div>
       <div
@@ -128,13 +160,13 @@ export default function WorkflowEditor({
           <CheckCircle size={18} />
         )}
         <span>
-          {validation.error || "十个必要步骤已连通，可保存并交给后台核对。"}
+          {displayedError || t("十个必要步骤已连通，可保存并交给后台核对。")}
         </span>
       </div>
       {!validation.error && (
         <ol className="workflow-order">
           {order.map((id) => (
-            <li key={id}>{stepLabels[id] || id}</li>
+            <li key={id}>{t(stepLabels[id] || id)}</li>
           ))}
         </ol>
       )}
@@ -142,9 +174,9 @@ export default function WorkflowEditor({
         <>
           <div className="workflow-editor-toolbar">
             <label>
-              编译先后
+              {t("编译先后")}
               <select
-                aria-label="编译先后"
+                aria-label={t("编译先后")}
                 disabled={locked}
                 value={
                   order.indexOf("esp_build") < order.indexOf("ros_build")
@@ -162,14 +194,14 @@ export default function WorkflowEditor({
                   )
                 }
               >
-                <option value="ros">先 ROS，再 ESP32</option>
-                <option value="esp">先 ESP32，再 ROS</option>
+                <option value="ros">{t("先 ROS，再 ESP32")}</option>
+                <option value="esp">{t("先 ESP32，再 ROS")}</option>
               </select>
             </label>
             <label>
-              检查先后
+              {t("检查先后")}
               <select
-                aria-label="检查先后"
+                aria-label={t("检查先后")}
                 disabled={locked}
                 value={
                   order.indexOf("simulation") < order.indexOf("communication")
@@ -186,8 +218,8 @@ export default function WorkflowEditor({
                   )
                 }
               >
-                <option value="communication">先通信，再仿真</option>
-                <option value="simulation">先仿真，再通信</option>
+                <option value="communication">{t("先通信，再仿真")}</option>
+                <option value="simulation">{t("先仿真，再通信")}</option>
               </select>
             </label>
             <button
@@ -198,18 +230,26 @@ export default function WorkflowEditor({
               }
             >
               <ArrowsCounterClockwise size={16} />
-              恢复默认
+              {t("恢复默认")}
             </button>
             <button
               className="button secondary"
               disabled={locked || checking || !!validation.error}
               onClick={() => void check()}
             >
-              {checking ? "正在检查…" : "后台核对连线"}
+              {checking ? t("正在检查…") : t("后台核对连线")}
             </button>
           </div>
-          <div className="workflow-edit-canvas" aria-label="可编辑工程流程图">
+          <div
+            className="workflow-edit-canvas"
+            aria-label={t("可编辑工程流程图")}
+          >
             <ReactFlow
+              ariaLabelConfig={{
+                "controls.zoomIn.ariaLabel": t("放大", "Zoom in"),
+                "controls.zoomOut.ariaLabel": t("缩小", "Zoom out"),
+                "controls.fitView.ariaLabel": t("适应画布", "Fit view"),
+              }}
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
@@ -217,7 +257,8 @@ export default function WorkflowEditor({
               fitViewOptions={{ padding: 0.12 }}
               minZoom={0.35}
               maxZoom={1.6}
-              colorMode="dark"
+              colorMode="light"
+              connectionLineStyle={{ stroke: "#002fa7", strokeWidth: 2 }}
               nodesDraggable={!locked}
               nodesConnectable={!locked}
               edgesReconnectable={false}
@@ -269,14 +310,18 @@ export default function WorkflowEditor({
             >
               <Background
                 variant={BackgroundVariant.Dots}
-                color="#31383d"
+                color="#c9d2e3"
                 gap={22}
               />
               <Controls showInteractive={false} />
             </ReactFlow>
           </div>
           <div className="workflow-edit-help">
-            <span>拖动圆点连线；点选线后可移除。拖动画布空白处平移，手机可双指缩放。</span>
+            <span>
+              {t(
+                "拖动圆点连线；点选线后可移除。拖动画布空白处平移，手机可双指缩放。",
+              )}
+            </span>
             <button
               className="button secondary"
               disabled={locked || !selectedEdge}
@@ -291,12 +336,12 @@ export default function WorkflowEditor({
                 setSelectedEdge(null);
               }}
             >
-              移除选中连线
+              {t("移除选中连线")}
             </button>
           </div>
         </>
       )}
-      {serverMessage && <div className="notice">{serverMessage}</div>}
+      {serverMessage && <div className="notice">{t(serverMessage)}</div>}
     </section>
   );
 }

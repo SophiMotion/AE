@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "source": "worker/foldbot_web_ui.h",
+  "source_html_sha256": "2a6fdec202481a80ed9554e4adc73bec3f5d17ab97f5121c6d08e5715cb2b89b",
+  "source_build": "foldbot-20260929-sophicar-external-driver-no-limits",
+  "transformations": [
+    "preserve original model and controls",
+    "explicit same-origin AE bridge attach",
+    "no automatic reconnect or simulation command fallback",
+    "nonblocking per-operation maintenance confirmation",
+    "read-only preview with connect-src none"
+  ],
+  "outputs": [
+    {
+      "path": "foldbot-console-local.html",
+      "mode": "local",
+      "bytes": 823734,
+      "sha256": "052773579f0c78f0aa1cc5decdc40cbf2810a9237c6ce7167b191390ae989825"
+    },
+    {
+      "path": "foldbot-console-preview.html",
+      "mode": "preview",
+      "bytes": 823630,
+      "sha256": "5ad5ac51dc6018fe187f3c5208b7ea7229e7e52d50e490125c22ef766b4da867"
+    },
+    {
+      "path": "foldbot-model-preview.html",
+      "mode": "model-only",
+      "bytes": 695589,
+      "sha256": "9fdaeb9b46fed2a98f43601f779884fd7e4de77298e39fda2e45ad9076c8378d"
+    }
+  ],
+  "robot_accessed": false,
+  "hardware_verified": false
+}

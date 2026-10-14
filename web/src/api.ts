@@ -1,4 +1,5 @@
 import type { IntakeDetails, DetailGroupKey } from "./intakeDetails";
+import { getLocale } from "./localeStore.ts";
 import { isPublicDemo, publicDemoApi } from "./publicDemo";
 export { isPublicDemo } from "./publicDemo";
 export type TaskType = "joint_position" | "sensor_threshold" | "joint_sequence";
@@ -613,4 +614,8 @@ export async function api<T>(
 export const printable = (value: unknown) =>
   typeof value === "string" ? value : JSON.stringify(value, null, 2);
 export const localTime = (value?: string) =>
-  value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "—";
+  value
+    ? new Date(value).toLocaleString(getLocale() === "en" ? "en-GB" : "zh-CN", {
+        hour12: false,
+      })
+    : "—";

@@ -1,0 +1,131 @@
+.project-graph-workspace {
+  border: 1px solid #dce4f1;
+  border-radius: 18px;
+  background: #fff;
+  margin: 18px 0 24px;
+  overflow: hidden;
+  min-width: 0;
+}
+.project-graph-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #edf1f7;
+  flex-wrap: wrap;
+}
+.project-graph-tabs {
+  display: flex;
+  gap: 5px;
+  background: #f3f6fb;
+  padding: 4px;
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+.project-graph-tabs button,
+.project-graph-export {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  padding: 9px 14px;
+  font-size: 14px;
+  color: #506078;
+  min-height: 42px;
+  cursor: pointer;
+}
+.project-graph-tabs button[aria-pressed="true"] {
+  background: #fff;
+  color: #002fa7;
+  box-shadow: 0 1px 6px #142c5810;
+  font-weight: 650;
+}
+.project-graph-tabs button:focus-visible,
+.project-graph-export:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+.project-graph-tabs button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.project-graph-export {
+  border: 1px solid #dce4ef;
+  background: #fff;
+  color: #002fa7;
+  font-size: 13px;
+}
+.project-graph-intro,
+.project-graph-boundary {
+  margin: 0;
+  padding: 14px 20px;
+  color: #53647c;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.project-graph-boundary {
+  border-top: 1px solid #edf1f7;
+  background: #fafbfd;
+}
+.project-graph-loading {
+  padding: 80px 20px;
+  text-align: center;
+  color: #53647c;
+  min-height: 440px;
+}
+.ae-launcher-import {
+  margin: 24px 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ae-launcher-import label {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.ae-launcher-import input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+.ae-launcher-import small {
+  color: #64748b;
+  font-size: 13px;
+}
+.ae-launcher-import p {
+  color: #b3261e;
+  flex-basis: 100%;
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .project-graph-toolbar {
+    padding: 10px;
+    gap: 8px;
+  }
+  .project-graph-tabs {
+    width: 100%;
+  }
+  .project-graph-tabs button {
+    flex: 1;
+    padding: 9px 6px;
+    font-size: 12px;
+  }
+  .project-graph-export {
+    width: 100%;
+  }
+  .project-graph-intro,
+  .project-graph-boundary {
+    padding: 12px;
+  }
+  .project-graph-workspace {
+    border-radius: 12px;
+  }
+}

@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => ({
     host: "127.0.0.1",
     port: 5178,
     strictPort: true,
-    proxy: { "/api": "http://127.0.0.1:8877" },
+    proxy: { "/api": { target: "http://127.0.0.1:8877", ws: true } },
     allowedHosts: ["terminal.local"],
     warmup: {
       clientFiles: ["./src/main.tsx"],

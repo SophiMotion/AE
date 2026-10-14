@@ -1,3 +1,6 @@
+import { useI18n } from "./i18n";
+import { t } from "./localeStore.ts";
+import "./i18nPanels";
 import { useEffect, useState } from "react";
 import {
   BracketsCurly,
@@ -9,7 +12,14 @@ import {
   Terminal,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { api, isPublicDemo, localTime, printable, type Plan, type Run } from "./api";
+import {
+  api,
+  isPublicDemo,
+  localTime,
+  printable,
+  type Plan,
+  type Run,
+} from "./api";
 import { recordDownloadUrl } from "./demoDownload";
 import ChecksView from "./ChecksView";
 import ModelIdentity from "./ModelIdentity";
@@ -20,7 +30,11 @@ const tabs = [
   { id: "files" as Tab, label: "生成文件", icon: FileCode },
   { id: "code" as Tab, label: "两端代码", icon: BracketsCurly },
   { id: "checks" as Tab, label: "检查结果", icon: CheckCircle },
-  { id: "ai" as Tab, label: isPublicDemo ? "生成与工具记录" : "AI 记录", icon: ListBullets },
+  {
+    id: "ai" as Tab,
+    label: isPublicDemo ? "生成与工具记录" : "AI 记录",
+    icon: ListBullets,
+  },
 ];
 export default function Evidence({
   run,
@@ -31,6 +45,7 @@ export default function Evidence({
   plan: Plan | null;
   failedProvenance?: import("./api").Provenance | null;
 }) {
+  const { locale } = useI18n();
   const [tab, setTab] = useState<Tab>("logs");
   const [path, setPath] = useState("");
   const [content, setContent] = useState("");
@@ -69,7 +84,7 @@ export default function Evidence({
   ];
   return (
     <section className="panel evidence">
-      <div className="evidence-tabs" role="tablist" aria-label="工程记录">
+      <div className="evidence-tabs" role="tablist" aria-label={t("工程记录")}>
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -79,7 +94,7 @@ export default function Evidence({
             onClick={() => setTab(id)}
           >
             <Icon size={19} />
-            {label}
+            {t(label)}
             {id === "files" && !!run?.artifacts?.length && (
               <small>{run.artifacts.length}</small>
             )}
@@ -88,8 +103,10 @@ export default function Evidence({
         {run && (
           <a
             className="icon-button export-action"
-            title={isPublicDemo ? "下载公开示例记录" : "下载完整工程"}
-            aria-label={isPublicDemo ? "下载公开示例记录" : "下载完整工程"}
+            title={isPublicDemo ? t("下载公开示例记录") : t("下载完整工程")}
+            aria-label={
+              isPublicDemo ? t("下载公开示例记录") : t("下载完整工程")
+            }
             href={recordDownloadUrl(run)}
             download={isPublicDemo ? "AE-公开示例记录.json" : undefined}
           >
@@ -107,7 +124,7 @@ export default function Evidence({
               >
                 <time>
                   {event.time
-                    ? new Date(event.time).toLocaleTimeString("zh-CN", {
+                    ? new Date(event.time).toLocaleTimeString(locale, {
                         hour12: false,
                       })
                     : "—"}
@@ -120,8 +137,18 @@ export default function Evidence({
         ) : (
           <Empty
             icon="log"
-            text={isPublicDemo ? "本机原始运行日志未公开" : "生成和运行后，这里会保留真实记录。"}
-            detail={isPublicDemo ? "可在“检查结果”“生成文件”查看公开证据；本页面不会伪造运行过程。" : "编译输出、启动过程和报错都可以在这里查看。"}
+            text={
+              isPublicDemo
+                ? t("本机原始运行日志未公开")
+                : t("生成和运行后，这里会保留真实记录。")
+            }
+            detail={
+              isPublicDemo
+                ? t(
+                    "可在“检查结果”“生成文件”查看公开证据；本页面不会伪造运行过程。",
+                  )
+                : t("编译输出、启动过程和报错都可以在这里查看。")
+            }
           />
         ))}
       {tab === "files" &&
@@ -166,8 +193,8 @@ export default function Evidence({
                   </>
                 ) : (
                   <Empty
-                    text="选择左侧文件查看"
-                    detail="可下载完整工程，在本机继续开发。"
+                    text={t("选择左侧文件查看")}
+                    detail={t("可下载完整工程，在本机继续开发。")}
                   />
                 )}
               </div>
@@ -175,8 +202,8 @@ export default function Evidence({
           </div>
         ) : (
           <Empty
-            text="还没有生成文件"
-            detail="程序、通信约定和检查结果都会保存到这一轮工程。"
+            text={t("还没有生成文件")}
+            detail={t("程序、通信约定和检查结果都会保存到这一轮工程。")}
           />
         ))}
       {tab === "checks" &&
@@ -186,8 +213,8 @@ export default function Evidence({
           </div>
         ) : (
           <Empty
-            text="还没有检查结果"
-            detail="只有后台真正执行之后，才会显示通过或失败。"
+            text={t("还没有检查结果")}
+            detail={t("只有后台真正执行之后，才会显示通过或失败。")}
           />
         ))}
       {tab === "code" && <GeneratedCode key={run?.id} run={run} />}
@@ -202,21 +229,33 @@ export default function Evidence({
               >
                 <summary>
                   <span>
-                    {isPublicDemo ? "工具说明 · " : "AI 生成 · "}{record.tool || "工具已记录"} {record.model || ""}
+                    {isPublicDemo ? t("工具说明 · ") : t("AI 生成 · ")}
+                    {record.tool || t("工具已记录")} {record.model || ""}
                   </span>
                   <time>{localTime(record.started_at)}</time>
                 </summary>
-                <label>{isPublicDemo ? "整理方式 / 使用的提示词" : "使用的提示词"}</label>
-                <pre>{record.prompt || (isPublicDemo ? "该公开示例采用固定模板生成，此分享页面不进行新的 AI 调用。" : "本轮未提供提示词记录")}</pre>
+                <label>
+                  {isPublicDemo
+                    ? t("整理方式 / 使用的提示词")
+                    : t("使用的提示词")}
+                </label>
+                <pre>
+                  {record.prompt ||
+                    (isPublicDemo
+                      ? t(
+                          "该公开示例采用固定模板生成，此分享页面不进行新的 AI 调用。",
+                        )
+                      : t("本轮未提供提示词记录"))}
+                </pre>
                 {record.response !== undefined && (
                   <>
-                    <label>原始回答</label>
+                    <label>{t("原始回答")}</label>
                     <pre>{printable(record.response)}</pre>
                   </>
                 )}
                 {!!record.sources?.length && (
                   <>
-                    <label>参考来源</label>
+                    <label>{t("参考来源")}</label>
                     <ul>
                       {record.sources.map((source, i) => (
                         <li key={i}>
@@ -237,14 +276,17 @@ export default function Evidence({
           </div>
         ) : (
           <Empty
-            text="还没有调用 AI"
-            detail="拆分需求和写代码的工具、模型、提示词与来源会保留在这里。"
+            text={t("还没有调用 AI")}
+            detail={t(
+              "拆分需求和写代码的工具、模型、提示词与来源会保留在这里。",
+            )}
           />
         ))}
     </section>
   );
 }
 function GeneratedCode({ run }: { run: Run | null }) {
+  useI18n();
   const versions = run?.code_versions || [];
   const [index, setIndex] = useState(Math.max(0, versions.length - 1));
   const [side, setSide] = useState<"ros" | "esp32">("ros");
@@ -284,8 +326,8 @@ function GeneratedCode({ run }: { run: Run | null }) {
   if (!version)
     return (
       <Empty
-        text="两端代码还没有生成"
-        detail="这里保留每次生成或修复的 Python 与 C++ 原文。"
+        text={t("两端代码还没有生成")}
+        detail={t("这里保留每次生成或修复的 Python 与 C++ 原文。")}
       />
     );
   const code = side === "ros" ? version.code : version.firmware_code;
@@ -325,17 +367,20 @@ function GeneratedCode({ run }: { run: Run | null }) {
           </button>
         </div>
         <label>
-          生成版本
+          {t("生成版本")}
           <select
-            aria-label="选择代码版本"
+            aria-label={t("选择代码版本")}
             value={index}
             onChange={(e) => setIndex(Number(e.target.value))}
           >
             {versions.map((v, i) => (
               <option key={i} value={i}>
-                第 {String(v.attempt || i + 1)} 次
+                {t(
+                  `第 ${String(v.attempt || i + 1)} 次`,
+                  `Attempt ${String(v.attempt || i + 1)}`,
+                )}
                 {v.validation_status === "rejected" || v.status === "rejected"
-                  ? " · 检查拒绝"
+                  ? t(" · 检查拒绝")
                   : ""}
               </option>
             ))}
@@ -343,12 +388,13 @@ function GeneratedCode({ run }: { run: Run | null }) {
         </label>
       </div>
       <p className="ai-label">
-        {isPublicDemo ? "已有模板生成源码 · " : "AI 生成 · "}{side === "ros" ? "algorithm.py" : "device_logic.cpp"} ·
-        编译与执行结果另行查看
+        {isPublicDemo ? t("已有模板生成源码 · ") : t("AI 生成 · ")}
+        {side === "ros" ? "algorithm.py" : "device_logic.cpp"}{" "}
+        {t("· 编译与执行结果另行查看")}
       </p>
       {rejected && (
         <div className="notice warning">
-          这版 AI 源码未通过代码检查，没有当作可执行程序使用。
+          {t("这版 AI 源码未通过代码检查，没有当作可执行程序使用。")}
           {String(
             version.diagnostic ||
               version.validation_error ||
@@ -359,12 +405,14 @@ function GeneratedCode({ run }: { run: Run | null }) {
       )}
       {baselineError && (
         <div className="notice warning">
-          上一轮源码读取失败：{baselineError}
+          {t("上一轮源码读取失败：")}
+          {baselineError}
         </div>
       )}
       {index === 0 && baselineId && (
         <p className="field-hint">
-          比较来源：运行 {baselineId.slice(0, 8)} 的最后一版保存源码。
+          {t("比较来源：运行")} {baselineId.slice(0, 8)}{" "}
+          {t("的最后一版保存源码。")}
         </p>
       )}
       <div className="code-diff-toolbar">
@@ -372,26 +420,26 @@ function GeneratedCode({ run }: { run: Run | null }) {
           className={`button secondary ${!showDiff ? "selected" : ""}`}
           onClick={() => setShowDiff(false)}
         >
-          完整源码
+          {t("完整源码")}
         </button>
         <button
           className={`button secondary ${showDiff ? "selected" : ""}`}
           disabled={!diff}
           onClick={() => setShowDiff(true)}
         >
-          与上一版比较
+          {t("与上一版比较")}
         </button>
         {diff ? (
           <span>
-            增加 {added} 行 · 删除 {removed} 行
-            {!added && !removed ? " · 源码未改动" : ""}
+            {t("增加")} {added} {t("行 · 删除")} {removed} {t("行")}
+            {!added && !removed ? t(" · 源码未改动") : ""}
           </span>
         ) : (
-          <span>这是当前记录中的第一版，没有可比较的上一版。</span>
+          <span>{t("这是当前记录中的第一版，没有可比较的上一版。")}</span>
         )}
       </div>
       {showDiff && diff ? (
-        <div className="code-diff" aria-label="真实源码差异">
+        <div className="code-diff" aria-label={t("真实源码差异")}>
           {diff.map((line, i) => (
             <div key={i} className={`diff-line ${line.kind}`}>
               <span className="line-number">{line.before ?? ""}</span>
@@ -411,13 +459,13 @@ function GeneratedCode({ run }: { run: Run | null }) {
         <pre>{code}</pre>
       ) : (
         <div className="empty-state compact">
-          这份历史记录没有保存 {side === "ros" ? "Python" : "C++"}{" "}
-          生成片段，请在“生成文件”中查看当时的完整工程。
+          {t("这份历史记录没有保存")} {side === "ros" ? "Python" : "C++"}{" "}
+          {t("生成片段，请在“生成文件”中查看当时的完整工程。")}
         </div>
       )}
       {typeof version.explanation === "string" && version.explanation && (
         <details>
-          <summary>AI 对这次改动的说明</summary>
+          <summary>{t("AI 对这次改动的说明")}</summary>
           <p>{version.explanation}</p>
         </details>
       )}
@@ -433,6 +481,7 @@ function Empty({
   detail: string;
   icon?: string;
 }) {
+  useI18n();
   return (
     <div className="empty-state compact">
       {icon === "log" ? <Terminal size={29} /> : <BracketsCurly size={29} />}
