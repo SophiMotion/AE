@@ -49,7 +49,8 @@
   gap: 12px;
   margin: 20px 0 14px;
 }
-.ffl-files label {
+.ffl-files label,
+.ffl-demo-file {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -60,6 +61,23 @@
   font-size: 13px;
   font-weight: 600;
   min-width: 0;
+}
+.ffl-demo-ports {
+  min-width: 0;
+  border: 1px solid #c6d5f3;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  background: #f8faff;
+}
+.ffl-demo-ports legend {
+  color: #264eae;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ffl-demo-ports button {
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 .ffl-files input {
   max-width: 100%;

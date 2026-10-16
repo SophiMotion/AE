@@ -34,7 +34,395 @@ function saveText(name: string, content: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// The public demo has its own state and never mounts the hardware session component.
+function DemoFoldBotFlash() {
+  const { t } = useI18n();
+  type Phase =
+    "idle" | "selected" | "ready" | "writing" | "verifying" | "verified";
+  type Message = [string, string];
+  const [files, setFiles] = useState([false, false, false]);
+  const [checked, setChecked] = useState(false);
+  const [port, setPort] = useState("");
+  const [pickingPort, setPickingPort] = useState(false);
+  const [isolated, setIsolated] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [progress, setProgress] = useState(0);
+  const [logs, setLogs] = useState<Message[]>([]);
+  const busy = phase === "writing" || phase === "verifying";
+  const labels: Record<Phase, Message> = {
+    idle: ["模拟设备未连接", "Simulated device disconnected"],
+    selected: [
+      "已选择模拟串口 · 尚未连接",
+      "Simulated port selected · not connected",
+    ],
+    ready: [
+      "模拟板卡已核对 · 等待写入",
+      "Simulated board checked · awaiting write",
+    ],
+    writing: ["模拟写入中…", "Simulating write…"],
+    verifying: ["模拟回读校验中…", "Simulating read-back…"],
+    verified: [
+      "模拟流程完成 · 未写入实物",
+      "Simulation complete · no device written",
+    ],
+  };
+  const append = (message: Message) =>
+    setLogs((items) => [...items.slice(-39), message]);
+  const invalidate = () => {
+    setChecked(false);
+    setConfirmed(false);
+    setProgress(0);
+    setPhase(port ? "selected" : "idle");
+  };
+  const disconnect = () => {
+    setPort("");
+    setPhase("idle");
+    setProgress(0);
+    setConfirmed(false);
+    setIsolated(false);
+    append([
+      "模拟串口已断开；未完成的模拟已取消。",
+      "Simulated port disconnected; unfinished simulation cancelled.",
+    ]);
+  };
+  useEffect(() => {
+    if (!busy) return;
+    const timer = window.setTimeout(() => {
+      if (phase === "verifying") {
+        setProgress(100);
+        setPhase("verified");
+        setLogs((items) => [
+          ...items,
+          [
+            "模拟校验完成。未访问 USB，未烧录任何开发板。",
+            "Simulated verification complete. No USB access or board flashing occurred.",
+          ],
+        ]);
+      } else if (progress >= 80) {
+        setProgress(95);
+        setPhase("verifying");
+        setLogs((items) => [
+          ...items,
+          [
+            "模拟写入结束，开始模拟回读校验。",
+            "Simulated write finished; starting simulated read-back.",
+          ],
+        ]);
+      } else {
+        setProgress(progress + 20);
+        setLogs((items) => [
+          ...items,
+          [
+            `模拟写入应用分区：${progress + 20}%`,
+            `Simulated application write: ${progress + 20}%`,
+          ],
+        ]);
+      }
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [phase, progress, busy]);
+  const filenames = [
+    "foldbot-demo.manifest.json",
+    "foldbot-demo.ino.bin",
+    "foldbot-demo.partitions.bin",
+  ];
+  return (
+    <section
+      className="foldbot-flash"
+      aria-label={t("USB 烧录", "USB flashing")}
+    >
+      <div className="ffl-heading">
+        <div>
+          <span className="ffl-kicker">ESP32-S3 / USB · DEMO</span>
+          <h3>{t("把程序写入折叠机器人", "Write the program to FoldBot")}</h3>
+        </div>
+        <span className="ffl-status">
+          {t("模拟设备 · 无 USB 访问", "Simulated device · no USB access")}
+        </span>
+      </div>
+      <div className="ffl-notice">
+        {t(
+          "按本机操作顺序体验：选择文件 → 核对文件 → 选择串口 → 连接板卡 → 确认写入。此页仅使用内置示例，不读取电脑串口，不编译或烧录实物。",
+          "Follow the local workflow: select files → check files → select port → connect board → confirm write. Built-in examples only; no computer ports, compilation or physical flashing.",
+        )}
+      </div>
+      <div className="ffl-files">
+        {[
+          t("1. 构建清单 .json", "1. Build manifest .json"),
+          t("2. 应用固件 .bin", "2. Application .bin"),
+          t("3. 同次构建的分区表 .bin", "3. Matching partition-table .bin"),
+        ].map((label, index) => (
+          <div className="ffl-demo-file" key={index}>
+            <strong>{label}</strong>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                invalidate();
+                setFiles((items) =>
+                  items.map((value, i) => (i === index ? !value : value)),
+                );
+                append([
+                  `示例文件选择已更改：${filenames[index]}，需要重新核对。`,
+                  `Example selection changed: ${filenames[index]}; review required.`,
+                ]);
+              }}
+            >
+              {files[index]
+                ? t("移除示例文件", "Remove example file")
+                : t("选择示例文件", "Select example file")}
+            </button>
+            <small>
+              {files[index] ? filenames[index] : t("尚未选择", "Not selected")}
+            </small>
+            <small>
+              {t(
+                "内置演示条目，无真实固件数据",
+                "Built-in demo entry, no actual firmware bytes",
+              )}
+            </small>
+          </div>
+        ))}
+      </div>
+      <div className="ffl-actions">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            invalidate();
+            setFiles([true, true, true]);
+            append([
+              "已载入三项示例文件，等待核对。",
+              "Three example files loaded, awaiting review.",
+            ]);
+          }}
+        >
+          {t("载入整套示例文件", "Load all example files")}
+        </button>
+        <button
+          type="button"
+          disabled={busy || !files.every(Boolean) || checked}
+          onClick={() => {
+            setChecked(true);
+            append([
+              "示例清单匹配：ESP32-S3、应用分区 0x10000。仅模拟检查，未校验真实二进制。",
+              "Example manifest matches ESP32-S3 and app offset 0x10000. Simulated check only; no binary validated.",
+            ]);
+          }}
+        >
+          {t("核对编译文件", "Check build files")}
+        </button>
+      </div>
+      {checked && (
+        <div className="ffl-summary">
+          <strong>
+            {t(
+              "示例文件核对完成 · 模拟结果",
+              "Example files reviewed · simulated result",
+            )}
+          </strong>
+          <dl>
+            <dt>{t("固件版本", "Firmware build")}</dt>
+            <dd>foldbot-demo-only</dd>
+            <dt>{t("编译目标", "Build target")}</dt>
+            <dd>esp32:esp32:esp32s3</dd>
+            <dt>{t("示例写入范围", "Example write range")}</dt>
+            <dd>0x10000 · 1,048,576 bytes</dd>
+          </dl>
+          <p>
+            {t(
+              "以上为固定示例元数据，未实际编译、计算文件哈希或核对板上分区。",
+              "Fixed example metadata; no actual compilation, file hashing or board partition checks.",
+            )}
+          </p>
+        </div>
+      )}
+      <label className="ffl-check">
+        <input
+          type="checkbox"
+          checked={isolated}
+          disabled={busy}
+          onChange={(event) => {
+            setIsolated(event.target.checked);
+            setConfirmed(false);
+            if (phase === "ready" || phase === "verified") {
+              setPhase(port ? "selected" : "idle");
+              setProgress(0);
+            }
+          }}
+        />
+        {t(
+          "演练确认：已了解本机操作前需要断开执行器动力、关闭其他控制工具并核对板型。本页不检查实物。",
+          "Practice confirmation: local operation requires isolating actuator power, closing other controllers and checking the board. This page does not inspect hardware.",
+        )}
+      </label>
+      <div className="ffl-actions">
+        <button
+          type="button"
+          disabled={busy}
+          aria-expanded={pickingPort}
+          onClick={() => setPickingPort((value) => !value)}
+        >
+          {t("选择 USB 串口", "Select USB serial port")}
+        </button>
+        <button
+          type="button"
+          disabled={!checked || !isolated || !port || phase !== "selected"}
+          onClick={() => {
+            setPhase("ready");
+            append([
+              `模拟连接 ${port}：ESP32-S3 / 8 MB Flash；示例分区匹配。`,
+              `Simulated connection ${port}: ESP32-S3 / 8 MB Flash; example partitions match.`,
+            ]);
+          }}
+        >
+          {t("连接并核对板卡", "Connect and check board")}
+        </button>
+        <span className="ffl-port">
+          {port
+            ? `${port} · ${t("模拟串口", "simulated port")}`
+            : t("等待选择模拟串口", "Select a simulated port")}
+        </span>
+      </div>
+      {pickingPort && (
+        <fieldset className="ffl-demo-ports">
+          <legend>
+            {t(
+              "选择模拟串口（不是系统设备列表）",
+              "Select a simulated port (not system devices)",
+            )}
+          </legend>
+          <p>
+            {t(
+              "以下端口都是示例；无需连接 USB，手机也可体验。",
+              "All ports below are examples. No USB connection needed; works on phones too.",
+            )}
+          </p>
+          <div className="ffl-actions">
+            {["COM3", "COM5", "/dev/cu.usbmodem-DEMO"].map((value) => (
+              <button
+                type="button"
+                key={value}
+                onClick={() => {
+                  setPort(value);
+                  setPhase("selected");
+                  setConfirmed(false);
+                  setProgress(0);
+                  setPickingPort(false);
+                  append([
+                    `已选择模拟串口 ${value}，未访问系统设备。`,
+                    `Selected simulated port ${value}; no system device access.`,
+                  ]);
+                }}
+              >
+                {value} · ESP32-S3 · {t("模拟", "Demo")}
+              </button>
+            ))}
+            <button type="button" onClick={() => setPickingPort(false)}>
+              {t("取消选择", "Cancel selection")}
+            </button>
+          </div>
+        </fieldset>
+      )}
+      <label className="ffl-check">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          disabled={phase !== "ready"}
+          onChange={(event) => setConfirmed(event.target.checked)}
+        />
+        {t(
+          "确认开始模拟写入：演练仅更新应用分区、保留 NVS 和标定的操作，不会写入任何设备。",
+          "Confirm simulated write: practice application-only update with NVS and calibration preserved. No device will be written.",
+        )}
+      </label>
+      <div className="ffl-actions">
+        <button
+          type="button"
+          className="ffl-primary"
+          disabled={phase !== "ready" || !confirmed || !checked || !isolated}
+          onClick={() => {
+            setPickingPort(false);
+            setProgress(0);
+            setPhase("writing");
+            append([
+              "开始模拟烧录，只演示应用分区写入。",
+              "Starting simulated flashing of the application partition only.",
+            ]);
+          }}
+        >
+          {t("开始 USB 烧录（模拟）", "Start USB flash (simulation)")}
+        </button>
+        <button type="button" disabled={!port} onClick={disconnect}>
+          {t("断开串口", "Disconnect serial")}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setFiles([false, false, false]);
+            setChecked(false);
+            setPort("");
+            setPickingPort(false);
+            setIsolated(false);
+            setConfirmed(false);
+            setPhase("idle");
+            setProgress(0);
+            setLogs([]);
+          }}
+        >
+          {t("重新体验", "Restart demo")}
+        </button>
+      </div>
+      <p role="status">{t(...labels[phase])}</p>
+      {(busy || phase === "verified") && (
+        <div className="ffl-progress">
+          <progress
+            aria-label={t("模拟烧录进度", "Simulated flashing progress")}
+            value={progress}
+            max={100}
+          />
+          <span>
+            {progress}% · {t(...labels[phase])}
+          </span>
+        </div>
+      )}
+      {phase === "verified" && (
+        <div className="ffl-notice">
+          {t(
+            "模拟完成，可以继续查看离线控制台。未连接、烧录或验证任何实物。",
+            "Simulation complete. Continue to the offline console. No physical device was connected, flashed or verified.",
+          )}
+        </div>
+      )}
+      <details className="ffl-help" open>
+        <summary>
+          {t("烧录日志（全部为模拟）", "Flashing log (all simulated)")}
+        </summary>
+        <pre aria-label={t("模拟烧录日志", "Simulated flashing log")}>
+          {logs.length
+            ? logs
+                .map(
+                  (message, index) =>
+                    `[DEMO ${String(index + 1).padStart(2, "0")}] ${t(...message)}`,
+                )
+                .join("\n")
+            : t(
+                "等待操作，没有真实设备连接。",
+                "Waiting for interaction. No physical device connected.",
+              )}
+        </pre>
+      </details>
+    </section>
+  );
+}
+
 export default function FoldBotFlash(props: FlashBinding) {
+  return isPublicDemo ? <DemoFoldBotFlash /> : <LocalFoldBotFlash {...props} />;
+}
+
+function LocalFoldBotFlash(props: FlashBinding) {
   const { t } = useI18n();
   const current = useRef(props);
   current.current = props;
@@ -53,7 +441,6 @@ export default function FoldBotFlash(props: FlashBinding) {
   const [buildName, setBuildName] = useState("");
   const [fqbn, setFqbn] = useState("");
   const [compiledAt, setCompiledAt] = useState("");
-  const [demoStep, setDemoStep] = useState(0);
   const busy = flashSessionBusy(snapshot.phase);
   let local = false;
   try {
@@ -451,18 +838,6 @@ export default function FoldBotFlash(props: FlashBinding) {
     ],
     failed: ["操作未完成", "Operation incomplete"],
   };
-  if (isPublicDemo) return (
-    <section className="foldbot-flash" aria-label={t("USB 烧录", "USB flashing")}>
-      <div className="ffl-heading"><h3>{t("体验模拟烧录", "Try simulated flashing")}</h3><span className="ffl-status">{t("演示 · 无设备访问", "Demo · no device access")}</span></div>
-      <p>{t("COM3 是示例接口。以下步骤仅演示烧录过程，不编译、不写入开发板，也不代表实物验证通过。", "COM3 is an example port. These steps only demonstrate flashing: no compilation, device write or hardware verification takes place.")}</p>
-      <ol>
-        {[t("选择示例串口 COM3", "Select example port COM3"), t("查看示例固件和分区", "Review example firmware and partitions"), t("模拟写入程序", "Simulate writing firmware"), t("模拟校验结束", "Finish simulated verification")].map((label, index) => <li key={index}>{index < demoStep ? "✓ " : "○ "}{label}</li>)}
-      </ol>
-      <progress aria-label={t("模拟烧录进度", "Simulated flashing progress")} value={demoStep} max={4} style={{width: "100%"}} />
-      <p role="status">{demoStep === 4 ? t("模拟流程已完成，可以继续查看离线控制台。未连接或烧录任何设备。", "Simulation complete. Continue to the offline console. No device was connected or flashed.") : t("点击按钮逐步体验，所有状态均为演示。", "Click to advance. All states are demonstrations.")}</p>
-      <button type="button" className="button primary" onClick={() => setDemoStep(step => step === 4 ? 0 : step + 1)}>{demoStep === 4 ? t("重新体验模拟烧录", "Restart simulated flashing") : t("下一步模拟烧录", "Next simulated flashing step")}</button>
-    </section>
-  );
   return (
     <section
       className="foldbot-flash"
